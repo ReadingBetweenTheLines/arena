@@ -1,0 +1,14 @@
+{
+    "JOHN": {
+        "wins": 1,
+        "damage": 0
+    },
+    "JOE": {
+        "wins": 1,
+        "damage": 0
+    },
+    "DOE": {
+        "wins": 1,
+        "damage": 130
+    }
+}
