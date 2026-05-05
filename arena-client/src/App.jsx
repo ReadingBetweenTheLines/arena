@@ -382,7 +382,7 @@ function App() {
   }, [setFloatingDamage, setOpponentOverload, setReactionText, setSlashPlayers, triggerDamageVisual]);
 
   useEffect(() => {
-    if (!isJoined) return;
+    if (!isInRoom) return;
 
     // Ganti ws://localhost:8000 dengan alamat Render Anda nanti saat deploy!
     const socketUrl = `wss://oyabb-arena-server.hf.space/ws/${roomCode}/${playerName}`;
@@ -429,7 +429,7 @@ function App() {
     return () => {
       if (socket.readyState === 1) socket.close();
     };
-  }, [isJoined, roomCode, playerName]);
+  }, [isInRoom, roomCode, playerName]);
 
   const handleDragStart = (e, item, source, index) => {
     if (battlePhase !== 'idle') return;
