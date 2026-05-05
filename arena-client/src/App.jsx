@@ -382,13 +382,15 @@ function App() {
   }, [setFloatingDamage, setOpponentOverload, setReactionText, setSlashPlayers, triggerDamageVisual]);
 
   useEffect(() => {
-    if (!isInRoom) return;
+    // 1. GEMBOK KEAMANAN: Jangan menelepon server jika nama atau kode ruangan belum siap!
+    if (!isInRoom || !roomCode || !playerName) return;
 
-    // Ganti ws://localhost:8000 dengan alamat Render Anda nanti saat deploy!
     const socketUrl = `wss://oyabb-arena-server.hf.space/ws/${roomCode}/${playerName}`;
-    const socket = new WebSocket(socketUrl);  
+    const socket = new WebSocket(socketUrl);
+    ws.current = socket;
 
-    ws.current.onmessage = (event) => {
+    // 2. Ganti ws.current.onmessage menjadi socket.onmessage agar lebih stabil
+    socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
 
       if (data.event === "opponent_disconnected") {
@@ -426,8 +428,14 @@ function App() {
         runBattleSequence(data);
       }
     };
+
+    // 3. Tangkap error jika koneksi bermasalah agar layar tidak blank
+    socket.onerror = (error) => {
+      console.error("WebSocket Error:", error);
+    };
+
     return () => {
-      if (socket.readyState === 1) socket.close();
+      if (socket.readyState === 1 || socket.readyState === 0) socket.close();
     };
   }, [isInRoom, roomCode, playerName]);
 
@@ -666,8 +674,8 @@ function App() {
             onChange={(e) => setPlayerName(e.target.value.toUpperCase())}
             disabled={isNameLocked}
             className={`w-full bg-black/50 border shadow-inner rounded-sm p-4 text-2xl font-black text-center text-white outline-none mb-2 uppercase transition-all ${isNameLocked
-                ? 'border-gray-800 text-gray-500 cursor-not-allowed opacity-60'
-                : 'border-gray-600 focus:border-green-400'
+              ? 'border-gray-800 text-gray-500 cursor-not-allowed opacity-60'
+              : 'border-gray-600 focus:border-green-400'
               }`}
           />
           {isNameLocked && (
