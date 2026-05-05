@@ -363,16 +363,17 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
                 room["player_bench"][player_id] = payload.get("bench", [None]*5)
                 room["player_energy"][player_id] = payload.get("energy", 15)
                 continue
-                
-            # 👇 TAMBAHKAN ELIF INI AGAR SERVER TIDAK SALAH PAHAM 👇
+            
+            # 👇 TAMBAHKAN ELIF INI: Hanya proses jika KTP-nya "lock_grid" 👇
             elif payload.get("event") == "lock_grid":
                 room["player_heroes"][player_id] = payload.get("hero", "ignis")
                 room["player_moves"][player_id] = {
                     "grid": payload.get("grid", []),
                     "root_kit": payload.get("root_kit", False),
                 }
+            
+            # 👇 TAMBAHKAN ELSE INI: Abaikan semua pesan iseng lainnya 👇
             else:
-                # Abaikan pesan lain yang tidak dikenal
                 continue
 
             # JIKA KEDUA PEMAIN DI RUANGAN INI SUDAH MENGIRIM GERAKAN

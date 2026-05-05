@@ -725,6 +725,8 @@ function App() {
     board.forEach((item, index) => {
       if (item) tacticalPayload.push({ type: item.name, row: Math.floor(index / 5), col: index % 5, star: item.star });
     });
+
+    // 👇 TAMBAHKAN event: "lock_grid" DI BARIS INI 👇
     ws.current.send(JSON.stringify({ 
       event: "lock_grid", 
       grid: tacticalPayload, 
