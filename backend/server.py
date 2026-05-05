@@ -120,6 +120,9 @@ def init_room():
         "player_max_hp": {"Player_1": 100, "Player_2": 100},
         "player_overload": {"Player_1": 0, "Player_2": 0},
         "current_bad_sectors": [],
+        "player_grids": {"Player_1": [None]*15, "Player_2": [None]*15},
+        "player_bench": {"Player_1": [None]*5, "Player_2": [None]*5},
+        "player_energy": {"Player_1": 15, "Player_2": 15},
         "lane_status": {
             "Player_1": ["", "", "", "", ""],
             "Player_2": ["", "", "", "", ""],
@@ -288,7 +291,7 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
                     json.dumps(
                         {
                             "event": "match_start",
-                            "room_code": room_id,
+                            "room_code": actual_room_code,
                             "bad_sectors": room["current_bad_sectors"],
                             "p1_name": room["player_names"].get("Player_1"),
                             "p2_name": room["player_names"].get("Player_2"),
@@ -354,6 +357,12 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
         while True:
             data = await websocket.receive_text()
             payload = json.loads(data)
+            
+            if payload.get("event") == "sync_state":
+                room["player_grids"][player_id] = payload.get("board", [None]*15)
+                room["player_bench"][player_id] = payload.get("bench", [None]*5)
+                room["player_energy"][player_id] = payload.get("energy", 15)
+                continue
 
             room["player_heroes"][player_id] = payload.get("hero", "ignis")
             room["player_moves"][player_id] = {
@@ -437,20 +446,23 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
                     p1_factions = []
                     p2_factions = []
                     
-                    # 1. Mengintip 3 baris di jalur (kolom) ini untuk melihat semua elemen yang ditaruh
-                    # CATATAN: Ubah 'room["player_grids"]' dengan nama variabel grid Anda yang sebenarnya
+                    # 1. Mengintip 3 baris di jalur (kolom) ini untuk melihat semua elemen
                     for row in range(3):
-                        # Cek faksi Player 1 di kolom ini
-                        c1 = room["player_grids"]["Player_1"][row][col]
-                        if c1:
-                            faksi_c1 = CARD_DB[c1]["faction"] if isinstance(c1, str) else c1.get("faction")
-                            if faksi_c1: p1_factions.append(faksi_c1)
-                            
-                        # Cek faksi Player 2 di kolom ini
-                        c2 = room["player_grids"]["Player_2"][row][col]
-                        if c2:
-                            faksi_c2 = CARD_DB[c2]["faction"] if isinstance(c2, str) else c2.get("faction")
-                            if faksi_c2: p2_factions.append(faksi_c2)
+                        idx = row * 5 + col  # Rumus mengubah 2D ke 1D Array
+                        
+                        # Cek faksi Player 1
+                        if room["player_grids"]["Player_1"] and len(room["player_grids"]["Player_1"]) == 15:
+                            c1 = room["player_grids"]["Player_1"][idx]
+                            if c1 and isinstance(c1, dict):
+                                faksi_c1 = c1.get("faction") or CARD_DB.get(c1.get("name", ""), {}).get("faction")
+                                if faksi_c1: p1_factions.append(faksi_c1)
+                                
+                        # Cek faksi Player 2
+                        if room["player_grids"]["Player_2"] and len(room["player_grids"]["Player_2"]) == 15:
+                            c2 = room["player_grids"]["Player_2"][idx]
+                            if c2 and isinstance(c2, dict):
+                                faksi_c2 = c2.get("faction") or CARD_DB.get(c2.get("name", ""), {}).get("faction")
+                                if faksi_c2: p2_factions.append(faksi_c2)
 
                     # 2. EVALUASI SINERGI PLAYER 1
                     if "Api" in p1_factions and "Bumi" in p1_factions:

@@ -297,9 +297,22 @@ function App() {
       localStorage.setItem('arena_roomCode', roomCode);
     } else if (!isInRoom) {
       // Jika pemain sengaja keluar (klik tombol Keluar), hapus ingatan ruangannya
-      localStorage.removeItem('arena_roomCode'); 
+      localStorage.removeItem('arena_roomCode');
     }
   }, [isInRoom, roomCode]);
+
+  // 4. SINKRONISASI KARTU KE SERVER SETIAP KALI BERUBAH
+  useEffect(() => {
+    // Hanya laporkan ke server jika pemain sedang di dalam ruangan dan di fase meracik kartu
+    if (ws.current && ws.current.readyState === WebSocket.OPEN && isInRoom && battlePhase === 'idle') {
+      ws.current.send(JSON.stringify({
+        event: "sync_state",
+        board: board,
+        bench: bench,
+        energy: energy
+      }));
+    }
+  }, [board, bench, energy, battlePhase, isInRoom]);
 
   useEffect(() => {
     if (selectedHero) {
@@ -326,10 +339,10 @@ function App() {
     setLastShopState([...newShop]);
   };
 
-  const triggerDamageVisual = (player) => {
+  const triggerDamageVisual = useCallback((player) => {
     setShakePlayer(player);
     setTimeout(() => setShakePlayer(null), 500);
-  };
+  }, []);
 
   const runBattleSequence = useCallback(async (data) => {
     setBattlePhase('clashing');
@@ -423,6 +436,8 @@ function App() {
 
     const socketUrl = `wss://oyabb-arena-server.hf.space/ws/${roomCode}/${playerName}`;
     const socket = new WebSocket(socketUrl);
+
+    // eslint-disable-next-line
     ws.current = socket;
 
     // 2. Ganti ws.current.onmessage menjadi socket.onmessage agar lebih stabil
@@ -461,7 +476,7 @@ function App() {
           // ==========================================
           // 🌟 2. PEMULIHAN KEADAAN PENUH (FULL RECOVERY) 🌟
           // ==========================================
-          
+
           // A. Memulihkan Hero
           const myHeroId = isP1 ? data.P1_Hero : data.P2_Hero;
           if (myHeroId) {
@@ -509,7 +524,7 @@ function App() {
     return () => {
       if (socket.readyState === 1 || socket.readyState === 0) socket.close();
     };
-  }, [isInRoom, roomCode, playerName]);
+  }, [isInRoom, roomCode, playerName, runBattleSequence]);
 
   const handleDragStart = (e, item, source, index) => {
     if (battlePhase !== 'idle') return;
@@ -720,23 +735,23 @@ function App() {
     setBattleResult(null);
     setBattlePhase('idle');
     setIsInRoom(false); // Ini akan otomatis menghapus memori ruangan di localStorage!
-    
+
     if (roomCode === "RANDOM" || isOpponentDisconnected) {
       setRoomCode("");
     }
-    
+
     setIsOpponentDisconnected(false);
     setBoard(Array(15).fill(null));
     setBench(Array(5).fill(null));
     setEnergy(15);
     setCurrentRound(1);
-    
+
     // --- PENYESUAIAN HP AWAL UNTUK HERO BARU ---
     let startingHP = 100;
     if (selectedHero?.id === 'terra') startingHP = 150;
     else if (selectedHero?.id === 'noctis') startingHP = 80;
     else if (selectedHero?.id === 'lumina') startingHP = 110;
-    
+
     setMyHP(startingHP);
     setOpponentHP(100);
   };
@@ -1209,8 +1224,8 @@ function App() {
             <span>💡</span> Info Taktik Rahasia
           </h3>
           <p className="text-xs text-gray-400 leading-relaxed">
-            Meletakkan elemen tertentu di <strong>Jalur (Kolom) yang sama</strong> akan memicu kekuatan super tersembunyi! 
-            <br/><br/>
+            Meletakkan elemen tertentu di <strong>Jalur (Kolom) yang sama</strong> akan memicu kekuatan super tersembunyi!
+            <br /><br />
             Bocoran intelijen: Coba gabungkan <span className="text-red-400 font-bold">API 🔥</span> dan <span className="text-emerald-400 font-bold">BUMI ⛰️</span>, atau <span className="text-blue-400 font-bold">AIR 💧</span> dan <span className="text-yellow-400 font-bold">PETIR ⚡</span> dalam satu jalur.
           </p>
         </div>
