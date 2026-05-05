@@ -318,10 +318,11 @@ function App() {
         event: "sync_state",
         board: board,
         bench: bench,
-        energy: energy
+        energy: energy,
+        shop: shopCards
       }));
     }
-  }, [board, bench, energy, battlePhase, isInRoom]);
+  }, [board, bench, energy, shopCards, battlePhase, isInRoom]);
 
   useEffect(() => {
     if (selectedHero) {
@@ -509,6 +510,11 @@ function App() {
           const myBoard = isP1 ? data.P1_Board : data.P2_Board;
           if (myBoard) {
             setBoard(myBoard);
+          }
+          const myShop = isP1 ? data.P1_Shop : data.P2_Shop;
+          if (myShop) {
+            setShopCards(myShop);
+            setLastShopState([...myShop]); // Sangat penting agar kartu tetap bisa di-drag!
           }
           // ==========================================
         } else {

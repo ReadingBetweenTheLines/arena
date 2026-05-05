@@ -123,6 +123,7 @@ def init_room():
         "player_grids": {"Player_1": [None]*15, "Player_2": [None]*15},
         "player_bench": {"Player_1": [None]*5, "Player_2": [None]*5},
         "player_energy": {"Player_1": 15, "Player_2": 15},
+        "player_shop": {"Player_1": [None]*5, "Player_2": [None]*5},
         "lane_status": {
             "Player_1": ["", "", "", "", ""],
             "Player_2": ["", "", "", "", ""],
@@ -337,6 +338,8 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
                                 "P2_Bench": room.get("player_bench", {}).get("Player_2"),
                                 "P1_Energy": room.get("player_energy", {}).get("Player_1"),
                                 "P2_Energy": room.get("player_energy", {}).get("Player_2"),
+                                "P1_Shop": room.get("player_shop", {}).get("Player_1"),
+                                "P2_Shop": room.get("player_shop", {}).get("Player_2"),
                                 # ==========================================
 
                                 "Leaderboard": dict(
@@ -362,6 +365,7 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
                 room["player_grids"][player_id] = payload.get("board", [None]*15)
                 room["player_bench"][player_id] = payload.get("bench", [None]*5)
                 room["player_energy"][player_id] = payload.get("energy", 15)
+                room["player_shop"][player_id] = payload.get("shop", [None]*5)
                 continue
             
             # 👇 TAMBAHKAN ELIF INI: Hanya proses jika KTP-nya "lock_grid" 👇
