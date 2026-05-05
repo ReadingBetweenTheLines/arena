@@ -1122,18 +1122,21 @@ function App() {
             ))}
           </div>
         </div>
-        <div className="bg-[#1a1c23] border border-gray-800 p-6 rounded-sm flex-grow shadow-2xl hidden md:block">
-          <h3 className="text-xl font-black text-yellow-500 mb-6">🏆 Peringkat Global</h3>
+        <div className="bg-[#1a1c23] border border-gray-800 p-4 md:p-6 rounded-sm shadow-2xl flex flex-col h-[350px] xl:h-[500px]">
+          <h3 className="text-xl md:text-2xl font-black text-yellow-500 mb-4 shrink-0 border-b border-gray-800 pb-2">
+            🏆 Peringkat Global
+          </h3>
+
           {Object.keys(globalLeaderboard).length === 0 ? (
-            <p className="text-gray-600 text-sm italic">Belum ada pertandingan selesai.</p>
+            <p className="text-gray-600 text-sm italic mt-2">Belum ada pertandingan selesai.</p>
           ) : (
-            <ul className="space-y-3">
+            <ul className="space-y-3 overflow-y-auto flex-grow pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#4b5563 #1a1c23' }}>
               {Object.entries(globalLeaderboard).map(([name, stats], index) => (
-                <li key={name} className="flex justify-between items-center p-3 bg-black/50 border border-gray-800 shadow-[inset_0_2px_5px_rgba(0,0,0,0.5)] rounded-sm">
-                  <span className="font-bold text-gray-300 flex items-center gap-2">
+                <li key={name} className="flex justify-between items-center p-3 bg-black/50 border border-gray-800 shadow-[inset_0_2px_5px_rgba(0,0,0,0.5)] rounded-sm shrink-0 hover:bg-gray-800/50 transition-colors">
+                  <span className="font-bold text-gray-300 flex items-center gap-2 truncate max-w-[120px] md:max-w-[150px]">
                     <span className="text-gray-600 text-sm">#{index + 1}</span> {name}
                   </span>
-                  <div className="flex flex-col items-end">
+                  <div className="flex flex-col items-end shrink-0">
                     <span className="font-black text-blue-500 drop-shadow-md leading-tight">{stats.wins} Menang</span>
                     <span className="text-[10px] text-red-400 font-bold uppercase tracking-wider">⚔️ {stats.damage} DMG</span>
                   </div>
