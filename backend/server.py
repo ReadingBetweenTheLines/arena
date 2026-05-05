@@ -8,6 +8,7 @@ import uuid
 DB_FILE = "leaderboard_data.json"
 waiting_random_room = None
 
+
 def load_leaderboard():
     if os.path.exists(DB_FILE):
         try:
@@ -22,9 +23,11 @@ def load_leaderboard():
             return {}
     return {}
 
+
 def save_leaderboard(data):
     with open(DB_FILE, "w") as f:
         json.dump(data, f, indent=4)
+
 
 # Inisialisasi leaderboard dari file saat server start
 global_leaderboard = load_leaderboard()
@@ -63,14 +66,55 @@ CARD_DB = {
     "Kekuatan_Kilat": {"energy": 2, "faction": "Petir", "icon": "🔋"},
     "Sinar_Laser": {"atk": 15, "pierce": True, "faction": "Petir", "icon": "🔦"},
     "Awan_Gelap": {"clear_hazards": True, "faction": "Petir", "icon": "☁️"},
+    # BESI / METAL
+    "Pedang_Baja": {"atk": 15, "pierce": True, "faction": "Besi", "icon": "🗡️"},
+    "Perisai_Titanium": {"def": 30, "faction": "Besi", "icon": "🛡️"},
+    "Meriam_Besi": {"atk": 10, "aoe": 15, "faction": "Besi", "icon": "💣"},
+    "Jarum_Nano": {"atk": 5, "pierce": True, "faction": "Besi", "icon": "🪡"},
+    "Jangkar_Baja": {"atk": 20, "def": 10, "faction": "Besi", "icon": "⚓"},
+    # GELAP / DARK
+    "Pukulan_Bayangan": {
+        "atk": 15,
+        "unblockable": True,
+        "faction": "Gelap",
+        "icon": "👤",
+    },
+    "Hisapan_Jiwa": {"atk": 10, "heal": 10, "faction": "Gelap", "icon": "🧛"},
+    "Lubang_Hitam": {
+        "atk": 0,
+        "aoe": 20,
+        "steal_energy": 1,
+        "faction": "Gelap",
+        "icon": "🌌",
+    },
+    "Kutukan_Malam": {"atk": 25, "pierce": True, "faction": "Gelap", "icon": "👁️"},
+    "Jubah_Kegelapan": {"def": 15, "reflect": True, "faction": "Gelap", "icon": "🧥"},
+    # CAHAYA / LIGHT
+    "Tombak_Suci": {"atk": 15, "pierce": True, "faction": "Cahaya", "icon": "🔱"},
+    "Sayap_Pelindung": {"def": 20, "heal": 5, "faction": "Cahaya", "icon": "🕊️"},
+    "Ledakan_Bintang": {"atk": 10, "aoe": 15, "faction": "Cahaya", "icon": "🌟"},
+    "Berkat_Matahari": {"def": 15, "heal": 10, "faction": "Cahaya", "icon": "☀️"},
+    "Penghakiman_Cahaya": {
+        "atk": 25,
+        "unblockable": True,
+        "faction": "Cahaya",
+        "icon": "⚖️",
+    },
+    # ANGIN / WIND
+    "Bilah_Angin": {"atk": 10, "pierce": True, "faction": "Angin", "icon": "🍃"},
+    "Tornado_Ganas": {"atk": 5, "aoe": 20, "faction": "Angin", "icon": "🌪️"},
+    "Perisai_Udara": {"def": 15, "reflect": True, "faction": "Angin", "icon": "💨"},
+    "Sedotan_Puyuh": {"atk": 10, "steal_energy": 1, "faction": "Angin", "icon": "🌪️"},
+    "Tebasan_Badai": {"atk": 20, "pierce": True, "faction": "Angin", "icon": "🦅"},
 }
+
 
 def init_room():
     return {
-        "active_sockets": {}, # TAMBAHAN: Menyimpan koneksi yang sedang aktif
+        "active_sockets": {},  # TAMBAHAN: Menyimpan koneksi yang sedang aktif
         "connected_players": [],
         "player_moves": {},
-        "player_names": {"Player_1": None, "Player_2": None}, # UBAH JADI DICTIONARY
+        "player_names": {"Player_1": None, "Player_2": None},  # UBAH JADI DICTIONARY
         "player_heroes": {"Player_1": None, "Player_2": None},
         "player_hp": {"Player_1": 100, "Player_2": 100},
         "player_max_hp": {"Player_1": 100, "Player_2": 100},
@@ -80,9 +124,10 @@ def init_room():
             "Player_1": ["", "", "", "", ""],
             "Player_2": ["", "", "", "", ""],
         },
-        "current_round": 1, # TAMBAHAN: Server sekarang mengingat ronde ke berapa
+        "current_round": 1,  # TAMBAHAN: Server sekarang mengingat ronde ke berapa
         "is_first_round": True,
     }
+
 
 def evaluate_grid(grid_data, hero_id):
     board = [[None for _ in range(5)] for _ in range(3)]
@@ -145,6 +190,18 @@ def evaluate_grid(grid_data, hero_id):
                 base_atk += 5
             if hero_id == "terra" and card.get("faction") == "Bumi":
                 base_def += 5
+            if hero_id == "aegis" and card.get("faction") == "Besi":
+                base_def += 5
+            if hero_id == "noctis" and card.get("faction") == "Gelap":
+                base_atk += 5
+            # TAMBAHAN HERO CAHAYA & ANGIN
+            if hero_id == "solomon" and card.get("faction") == "Cahaya":
+                if "heal" in card:
+                    card["heal"] += 5  # Bonus Heal untuk kartu Cahaya
+                else:
+                    base_def += 5  # Jika tidak ada heal, beri bonus pertahanan
+            if hero_id == "zephyr" and card.get("faction") == "Angin":
+                base_atk += 5  # Bonus serangan untuk kartu Angin
 
             atk_power = base_atk * mult
             lane_stats[c]["attack"] += atk_power
@@ -163,6 +220,7 @@ def evaluate_grid(grid_data, hero_id):
 
     return {"lanes": lane_stats, "penalty": syntax_error_penalty, "combo": False}
 
+
 @app.websocket("/ws/{room_code}/{player_name}")
 async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: str):
     global waiting_random_room
@@ -171,7 +229,11 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
     actual_room_code = room_code
 
     if room_code == "RANDOM":
-        if waiting_random_room and waiting_random_room in rooms and len(rooms[waiting_random_room]["active_sockets"]) == 1:
+        if (
+            waiting_random_room
+            and waiting_random_room in rooms
+            and len(rooms[waiting_random_room]["active_sockets"]) == 1
+        ):
             actual_room_code = waiting_random_room
             waiting_random_room = None
         else:
@@ -201,7 +263,9 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
         elif room["player_names"]["Player_2"] is None:
             player_id = "Player_2"
         else:
-            await websocket.send_text(json.dumps({"event": "error", "message": "Ruangan penuh!"}))
+            await websocket.send_text(
+                json.dumps({"event": "error", "message": "Ruangan penuh!"})
+            )
             await websocket.close(code=1008)
             return
 
@@ -220,30 +284,71 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
                     room["current_bad_sectors"].append(random.choice(available_slots))
 
             for player in room["connected_players"]:
-                await player.send_text(json.dumps({
-                    "event": "match_start",
-                    "bad_sectors": room["current_bad_sectors"],
-                    "p1_name": room["player_names"].get("Player_1"),
-                    "p2_name": room["player_names"].get("Player_2"),
-                    "Leaderboard": dict(sorted(global_leaderboard.items(), key=lambda item: (item[1].get("wins", 0), item[1].get("damage", 0)), reverse=True))
-                }))
+                await player.send_text(
+                    json.dumps(
+                        {
+                            "event": "match_start",
+                            "room_code": room_id,
+                            "bad_sectors": room["current_bad_sectors"],
+                            "p1_name": room["player_names"].get("Player_1"),
+                            "p2_name": room["player_names"].get("Player_2"),
+                            "Leaderboard": dict(
+                                sorted(
+                                    global_leaderboard.items(),
+                                    key=lambda item: (
+                                        item[1].get("wins", 0),
+                                        item[1].get("damage", 0),
+                                    ),
+                                    reverse=True,
+                                )
+                            ),
+                        }
+                    )
+                )
         else:
             # LANJUTKAN PERTANDINGAN (RECONNECT)
             for player in room["connected_players"]:
-                await player.send_text(json.dumps({
-                    "event": "match_resume",
-                    "bad_sectors": room["current_bad_sectors"],
-                    "p1_name": room["player_names"].get("Player_1"),
-                    "p2_name": room["player_names"].get("Player_2"),
-                    "P1_HP": room["player_hp"]["Player_1"],
-                    "P2_HP": room["player_hp"]["Player_2"],
-                    "P1_MaxHP": room["player_max_hp"]["Player_1"],
-                    "P2_MaxHP": room["player_max_hp"]["Player_2"],
-                    "P1_Overload": room["player_overload"]["Player_1"],
-                    "P2_Overload": room["player_overload"]["Player_2"],
-                    "current_round": room["current_round"],
-                    "Leaderboard": dict(sorted(global_leaderboard.items(), key=lambda item: (item[1].get("wins", 0), item[1].get("damage", 0)), reverse=True))
-                }))
+                    await player.send_text(
+                        json.dumps(
+                            {
+                                "event": "match_resume",
+                                "bad_sectors": room["current_bad_sectors"],
+                                "p1_name": room["player_names"].get("Player_1"),
+                                "p2_name": room["player_names"].get("Player_2"),
+                                "P1_HP": room["player_hp"]["Player_1"],
+                                "P2_HP": room["player_hp"]["Player_2"],
+                                "P1_MaxHP": room["player_max_hp"]["Player_1"],
+                                "P2_MaxHP": room["player_max_hp"]["Player_2"],
+                                "P1_Overload": room["player_overload"]["Player_1"],
+                                "P2_Overload": room["player_overload"]["Player_2"],
+                                "current_round": room["current_round"],
+                                
+                                # ==========================================
+                                # 🌟 TAMBAHAN UNTUK PEMULIHAN PENUH 🌟
+                                # (Menggunakan .get() agar server tidak crash jika datanya kosong)
+                                "P1_Hero": room.get("player_heroes", {}).get("Player_1"),
+                                "P2_Hero": room.get("player_heroes", {}).get("Player_2"),
+                                "P1_Board": room.get("player_grids", {}).get("Player_1"),
+                                "P2_Board": room.get("player_grids", {}).get("Player_2"),
+                                "P1_Bench": room.get("player_bench", {}).get("Player_1"),
+                                "P2_Bench": room.get("player_bench", {}).get("Player_2"),
+                                "P1_Energy": room.get("player_energy", {}).get("Player_1"),
+                                "P2_Energy": room.get("player_energy", {}).get("Player_2"),
+                                # ==========================================
+
+                                "Leaderboard": dict(
+                                    sorted(
+                                        global_leaderboard.items(),
+                                        key=lambda item: (
+                                            item[1].get("wins", 0),
+                                            item[1].get("damage", 0),
+                                        ),
+                                        reverse=True,
+                                    )
+                                ),
+                            }
+                        )
+                    )
 
     try:
         while True:
@@ -263,6 +368,12 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
                         if room["player_heroes"][p] == "terra":
                             room["player_hp"][p] = 150
                             room["player_max_hp"][p] = 150
+                        elif room["player_heroes"][p] == "noctis":
+                            room["player_hp"][p] = 80  # Hero gelap darahnya lebih tipis
+                            room["player_max_hp"][p] = 80
+                        elif room["player_heroes"][p] == "solomon":
+                            room["player_hp"][p] = 110  # Hero cahaya sedikit lebih tebal
+                            room["player_max_hp"][p] = 110
                         else:
                             room["player_hp"][p] = 100
                             room["player_max_hp"][p] = 100
@@ -322,6 +433,56 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
                     p2_def = p2_board["lanes"][col]["defense"]
                     p2_faction = p2_board["lanes"][col]["atk_faction"]
                     p2_has_card = p2_board["lanes"][col]["has_card"]
+                    
+                    p1_factions = []
+                    p2_factions = []
+                    
+                    # 1. Mengintip 3 baris di jalur (kolom) ini untuk melihat semua elemen yang ditaruh
+                    # CATATAN: Ubah 'room["player_grids"]' dengan nama variabel grid Anda yang sebenarnya
+                    for row in range(3):
+                        # Cek faksi Player 1 di kolom ini
+                        c1 = room["player_grids"]["Player_1"][row][col]
+                        if c1:
+                            faksi_c1 = CARD_DB[c1]["faction"] if isinstance(c1, str) else c1.get("faction")
+                            if faksi_c1: p1_factions.append(faksi_c1)
+                            
+                        # Cek faksi Player 2 di kolom ini
+                        c2 = room["player_grids"]["Player_2"][row][col]
+                        if c2:
+                            faksi_c2 = CARD_DB[c2]["faction"] if isinstance(c2, str) else c2.get("faction")
+                            if faksi_c2: p2_factions.append(faksi_c2)
+
+                    # 2. EVALUASI SINERGI PLAYER 1
+                    if "Api" in p1_factions and "Bumi" in p1_factions:
+                        p1_atk += 15
+                        
+                    if "Air" in p1_factions and "Petir" in p1_factions:
+                        p1_atk += 10
+                        p2_def = max(0, p2_def - 10)
+                        
+                    if "Cahaya" in p1_factions and "Besi" in p1_factions:
+                        p1_def += 20
+                        
+                    if "Angin" in p1_factions and "Gelap" in p1_factions:
+                        # Curi 5 HP musuh langsung ke HP sendiri
+                        room["player_hp"]["Player_1"] = min(room["player_max_hp"]["Player_1"], room["player_hp"]["Player_1"] + 5)
+                        room["player_hp"]["Player_2"] -= 5
+
+                    # 3. EVALUASI SINERGI PLAYER 2
+                    if "Api" in p2_factions and "Bumi" in p2_factions:
+                        p2_atk += 15
+                        
+                    if "Air" in p2_factions and "Petir" in p2_factions:
+                        p2_atk += 10
+                        p1_def = max(0, p1_def - 10)
+                        
+                    if "Cahaya" in p2_factions and "Besi" in p2_factions:
+                        p2_def += 20
+                        
+                    if "Angin" in p2_factions and "Gelap" in p2_factions:
+                        # Curi 5 HP musuh langsung ke HP sendiri
+                        room["player_hp"]["Player_2"] = min(room["player_max_hp"]["Player_2"], room["player_hp"]["Player_2"] + 5)
+                        room["player_hp"]["Player_1"] -= 5
 
                     # Perbaikan logika animasi: Lewati hanya jika BENAR-BENAR tidak ada kartu di kedua jalur
                     if not p1_has_card and not p2_has_card:
@@ -463,12 +624,16 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
                 if p1_name:
                     if p1_name not in global_leaderboard:
                         global_leaderboard[p1_name] = {"wins": 0, "damage": 0}
-                    global_leaderboard[p1_name]["damage"] += p2_total_dmg  # P1 memberikan p2_total_dmg
+                    global_leaderboard[p1_name][
+                        "damage"
+                    ] += p2_total_dmg  # P1 memberikan p2_total_dmg
 
                 if p2_name:
                     if p2_name not in global_leaderboard:
                         global_leaderboard[p2_name] = {"wins": 0, "damage": 0}
-                    global_leaderboard[p2_name]["damage"] += p1_total_dmg  # P2 memberikan p1_total_dmg
+                    global_leaderboard[p2_name][
+                        "damage"
+                    ] += p1_total_dmg  # P2 memberikan p1_total_dmg
 
                 # UPDATE GLOBAL LEADERBOARD JIKA PERTANDINGAN SELESAI
                 if game_over:
@@ -481,7 +646,7 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
                     if winner_name:
                         # Tambah 1 kemenangan untuk yang menang
                         global_leaderboard[winner_name]["wins"] += 1
-                        
+
                     # Simpan data fisik agar damage dan skor tidak hilang
                     save_leaderboard(global_leaderboard)
 
@@ -489,7 +654,10 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
                 sorted_leaderboard = dict(
                     sorted(
                         global_leaderboard.items(),
-                        key=lambda item: (item[1].get("wins", 0), item[1].get("damage", 0)),
+                        key=lambda item: (
+                            item[1].get("wins", 0),
+                            item[1].get("damage", 0),
+                        ),
                         reverse=True,
                     )
                 )
@@ -551,14 +719,17 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
 
                 room["player_moves"].clear()
 
-                room["current_round"] += 1 # Naikkan memori ronde server
-                
+                room["current_round"] += 1  # Naikkan memori ronde server
+
                 if game_over:
                     room["player_hp"]["Player_1"] = 100
                     room["player_hp"]["Player_2"] = 100
                     room["player_max_hp"] = {"Player_1": 100, "Player_2": 100}
                     room["player_overload"] = {"Player_1": 0, "Player_2": 0}
-                    room["lane_status"] = {"Player_1": ["", "", "", "", ""], "Player_2": ["", "", "", "", ""]}
+                    room["lane_status"] = {
+                        "Player_1": ["", "", "", "", ""],
+                        "Player_2": ["", "", "", "", ""],
+                    }
                     room["is_first_round"] = True
                     room["current_round"] = 1
                     room["current_bad_sectors"] = []
@@ -567,9 +738,9 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
         # LOGIKA TERPUTUS YANG BARU
         if player_id in room["active_sockets"]:
             del room["active_sockets"][player_id]
-        
+
         room["connected_players"] = list(room["active_sockets"].values())
-        room["player_moves"].pop(player_id, None) 
+        room["player_moves"].pop(player_id, None)
         # PERHATIKAN: Kita TIDAK menghapus "player_names" atau "player_hp" di sini!
 
         if actual_room_code == waiting_random_room and not room["active_sockets"]:
@@ -583,6 +754,8 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
             # Beritahu pemain yang masih di dalam bahwa musuhnya terputus
             for remaining in room["connected_players"]:
                 try:
-                    await remaining.send_text(json.dumps({"event": "opponent_disconnected"}))
+                    await remaining.send_text(
+                        json.dumps({"event": "opponent_disconnected"})
+                    )
                 except:
                     pass

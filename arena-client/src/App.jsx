@@ -4,6 +4,10 @@ import ignisImg from './assets/ignis.png';
 import aquaImg from './assets/aqua.png';
 import terraImg from './assets/terra.png';
 import voltaImg from './assets/volta.png';
+import aegisImg from './assets/aegis.png';
+import noctisImg from './assets/noctis.png';
+import solomonImg from './assets/solomon.png';
+import zephyrImg from './assets/zephyr.png';
 
 const INJECTED_STYLES = `
   @keyframes clashAttack {
@@ -102,7 +106,11 @@ const HERO_DATABASE = [
   { id: 'ignis', name: 'Ignis', title: 'Ksatria Api', icon: '🔥', image: ignisImg, desc: 'Kartu Api +5 Serangan.', color: 'border-red-500 bg-red-900/30 text-red-400' },
   { id: 'terra', name: 'Terra', title: 'Pelindung Bumi', icon: '⛰️', image: terraImg, desc: 'Mulai 150 HP & Kartu Bumi +5 Pertahanan.', color: 'border-emerald-500 bg-emerald-900/30 text-emerald-400' },
   { id: 'aqua', name: 'Aqua', title: 'Ahli Taktik Air', icon: '💧', image: aquaImg, desc: 'Ganti Kartu (Reroll) GRATIS (0 Koin).', color: 'border-blue-500 bg-blue-900/30 text-blue-400' },
-  { id: 'volta', name: 'Volta', title: 'Pencuri Petir', icon: '⚡', image: voltaImg, desc: 'Ekstra +2 Koin tiap ronde.', color: 'border-yellow-500 bg-yellow-900/30 text-yellow-400' }
+  { id: 'volta', name: 'Volta', title: 'Pencuri Petir', icon: '⚡', image: voltaImg, desc: 'Ekstra +2 Koin tiap ronde.', color: 'border-yellow-500 bg-yellow-900/30 text-yellow-400' },
+  { id: 'aegis', name: 'Aegis', title: 'Ksatria Baja', icon: '⚙️', image: aegisImg, desc: 'Kartu Besi +5 Pertahanan.', color: 'border-gray-400 bg-gray-900/30 text-gray-300' },
+  { id: 'noctis', name: 'Noctis', title: 'Penguasa Bayangan', icon: '🌌', image: noctisImg, desc: 'Mulai 80 HP. Kartu Gelap +5 Serangan.', color: 'border-purple-900 bg-black/60 text-purple-400' },
+  { id: 'solomon', name: 'Solomon', title: 'Paladin Matahari', icon: '☀️', image: solomonImg, desc: 'Mulai 110 HP. Kartu Cahaya +5 Pertahanan atau +5 Heal.', color: 'border-yellow-200 bg-yellow-900/40 text-yellow-100' },
+  { id: 'zephyr', name: 'Zephyr', title: 'Pengembara Angin', icon: '🌪️', image: zephyrImg, desc: 'Kartu Angin +5 Serangan instan.', color: 'border-teal-400 bg-teal-900/30 text-teal-300' }
 ];
 
 const SLASH_FRAMES = ['/assets/slash1.png', '/assets/slash2.png', '/assets/slash3.png', '/assets/slash4.png', '/assets/slash5.png'];
@@ -233,13 +241,16 @@ const ResultStats = ({ title, stats, dmgTaken, usedRootKit }) => (
 );
 
 function App() {
-  const [playerName, setPlayerName] = useState("");
+  const [playerName, setPlayerName] = useState(() => localStorage.getItem('arena_playerName') || "");
   const [isNameLocked, setIsNameLocked] = useState(false);
-  const [roomCode, setRoomCode] = useState("");
+  const [roomCode, setRoomCode] = useState(() => localStorage.getItem('arena_roomCode') || "");
   const [opponentName, setOpponentName] = useState("Lawan");
-  const [selectedHero, setSelectedHero] = useState(null);
+  const [selectedHero, setSelectedHero] = useState(() => {
+    const savedHeroId = localStorage.getItem('arena_hero');
+    return savedHeroId ? HERO_DATABASE.find(h => h.id === savedHeroId) || null : null;
+  });
   const [isJoined, setIsJoined] = useState(false);
-  const [isInRoom, setIsInRoom] = useState(false);
+  const [isInRoom, setIsInRoom] = useState(() => !!localStorage.getItem('arena_roomCode'));
   const [shopCards, setShopCards] = useState([]);
   const [bench, setBench] = useState(Array(5).fill(null));
   const [energy, setEnergy] = useState(15);
@@ -272,6 +283,31 @@ function App() {
 
   const [globalLeaderboard, setGlobalLeaderboard] = useState({});
   const [isOpponentDisconnected, setIsOpponentDisconnected] = useState(false);
+
+  // 2. SIMPAN NAMA PEMAIN SECARA OTOMATIS
+  useEffect(() => {
+    if (playerName) {
+      localStorage.setItem('arena_playerName', playerName);
+    }
+  }, [playerName]);
+
+  // 3. SIMPAN KODE RUANGAN SAAT BERTANDING, & HAPUS SAAT KELUAR
+  useEffect(() => {
+    if (isInRoom && roomCode) {
+      localStorage.setItem('arena_roomCode', roomCode);
+    } else if (!isInRoom) {
+      // Jika pemain sengaja keluar (klik tombol Keluar), hapus ingatan ruangannya
+      localStorage.removeItem('arena_roomCode'); 
+    }
+  }, [isInRoom, roomCode]);
+
+  useEffect(() => {
+    if (selectedHero) {
+      localStorage.setItem('arena_hero', selectedHero.id);
+    } else {
+      localStorage.removeItem('arena_hero');
+    }
+  }, [selectedHero]);
 
   const handleHeroSelection = (hero) => {
     setSelectedHero(hero);
@@ -405,22 +441,58 @@ function App() {
         if (data.P1_HP) setMyHP(data.P1_HP);
         if (data.P2_HP) setOpponentHP(data.P2_HP);
         if (data.Leaderboard) setGlobalLeaderboard(data.Leaderboard);
-
         if (data.p1_name && data.p2_name) {
           const opponent = data.p1_name === playerName ? data.p2_name : data.p1_name;
           setOpponentName(opponent);
         }
+        if (data.room_code) {
+          setRoomCode(data.room_code);
+        }
 
         if (data.event === "match_resume") {
+          // 1. Pulihkan Ronde dan Status dasar
           setCurrentRound(data.current_round);
           const isP1 = data.p1_name === playerName;
           setMyOverload(isP1 ? data.P1_Overload : data.P2_Overload);
           setOpponentOverload(isP1 ? data.P2_Overload : data.P1_Overload);
           setIsOpponentDisconnected(false);
           setBattlePhase('idle');
+
+          // ==========================================
+          // 🌟 2. PEMULIHAN KEADAAN PENUH (FULL RECOVERY) 🌟
+          // ==========================================
+          
+          // A. Memulihkan Hero
+          const myHeroId = isP1 ? data.P1_Hero : data.P2_Hero;
+          if (myHeroId) {
+            const recoveredHero = HERO_DATABASE.find(h => h.id === myHeroId);
+            if (recoveredHero) setSelectedHero(recoveredHero);
+          }
+
+          // B. Memulihkan Koin Energi
+          const myEnergy = isP1 ? data.P1_Energy : data.P2_Energy;
+          if (myEnergy !== undefined && myEnergy !== null) {
+            setEnergy(myEnergy);
+          }
+
+          // C. Memulihkan Kartu di Tangan (Bench)
+          const myBench = isP1 ? data.P1_Bench : data.P2_Bench;
+          if (myBench) {
+            setBench(myBench);
+          }
+
+          // D. Memulihkan Kartu di Arena (Board)
+          const myBoard = isP1 ? data.P1_Board : data.P2_Board;
+          if (myBoard) {
+            setBoard(myBoard);
+          }
+          // ==========================================
         } else {
+          // Jika ini match_start (bukan resume)
           setCurrentRound(1);
           setIsOpponentDisconnected(false);
+          setBattleResult(null);
+          setBattlePhase('idle');
         }
       }
 
@@ -647,16 +719,25 @@ function App() {
     if (ws.current) ws.current.close();
     setBattleResult(null);
     setBattlePhase('idle');
-    setIsInRoom(false);
+    setIsInRoom(false); // Ini akan otomatis menghapus memori ruangan di localStorage!
+    
     if (roomCode === "RANDOM" || isOpponentDisconnected) {
       setRoomCode("");
     }
+    
     setIsOpponentDisconnected(false);
     setBoard(Array(15).fill(null));
     setBench(Array(5).fill(null));
     setEnergy(15);
     setCurrentRound(1);
-    setMyHP(selectedHero?.id === 'terra' ? 150 : 100);
+    
+    // --- PENYESUAIAN HP AWAL UNTUK HERO BARU ---
+    let startingHP = 100;
+    if (selectedHero?.id === 'terra') startingHP = 150;
+    else if (selectedHero?.id === 'noctis') startingHP = 80;
+    else if (selectedHero?.id === 'lumina') startingHP = 110;
+    
+    setMyHP(startingHP);
     setOpponentHP(100);
   };
 
@@ -934,7 +1015,7 @@ function App() {
               </div>
             )}
 
-            <div className={`mb-6 flex-grow transition-all duration-500 ${battlePhase === 'locked' ? 'filter brightness-50 contrast-125' : ''}`}>
+            <div className={`mb-6 w-full transition-all duration-500 ${battlePhase === 'locked' ? 'filter brightness-50 contrast-125' : ''}`}>
               <h4 className="text-sm font-bold text-gray-500 mb-2 tracking-widest uppercase drop-shadow-md">Arena Pertarungan</h4>
 
               <div className="grid grid-cols-5 gap-1 mb-1 text-[8px] md:text-[10px] text-center font-bold">
@@ -950,7 +1031,7 @@ function App() {
                 })}
               </div>
 
-              <div className="bg-gradient-to-br from-[#2a1b12] to-[#140b06] p-2 md:p-6 rounded-sm border-2 md:border-[6px] border-[#3e2723] relative shadow-[0_30px_60px_rgba(0,0,0,0.9)] h-full flex flex-col justify-center">
+              <div className="bg-gradient-to-br from-[#2a1b12] to-[#140b06] p-2 md:p-6 rounded-sm border-2 md:border-[6px] border-[#3e2723] relative shadow-[0_30px_60px_rgba(0,0,0,0.9)] flex flex-col justify-center">
                 <div className="absolute inset-0 bg-black/20 shadow-[inset_0_0_50px_rgba(0,0,0,1)] pointer-events-none"></div>
 
                 <div className="absolute -top-3 md:-top-4 left-0 w-full flex justify-between px-2 md:px-10 text-[8px] md:text-xs font-black text-[#8d6e63] uppercase tracking-widest pointer-events-none z-10 gap-2">
@@ -1087,7 +1168,7 @@ function App() {
         )}
       </div>
 
-      <div className="w-full xl:w-80 flex flex-col gap-4 md:gap-6 order-last xl:order-none mb-10 xl:mb-0">
+      <div className="w-full xl:w-[400px] flex flex-col gap-4 md:gap-6 order-last xl:order-none mb-10 xl:mb-0 shrink-0">
         <div
           className={`bg-[#1a1c23] border border-gray-800 rounded-sm p-4 flex flex-col gap-4 shadow-2xl transition-all ${battlePhase !== 'idle' ? 'opacity-50 pointer-events-none' : ''}`}
           onDragOver={handleDragOver}
@@ -1100,9 +1181,9 @@ function App() {
               {UI_ICONS.Energy} {selectedHero?.id === 'aqua' ? 0 : 1} Ganti
             </button>
           </div>
-          <div className="flex flex-row xl:flex-col gap-3 overflow-x-auto overflow-y-hidden pb-2 xl:pb-0">
+          <div className="flex flex-row xl:grid xl:grid-cols-2 gap-3 overflow-x-auto overflow-y-hidden pb-2 xl:pb-0">
             {shopCards.map((item, index) => (
-              <div key={index} className="min-w-[100px] xl:w-full h-[100px] xl:h-[100px]">
+              <div key={index} className="min-w-[100px] w-full h-[100px] xl:h-[120px]">
                 {item ? (
                   <BlockCard
                     item={item}
@@ -1122,6 +1203,19 @@ function App() {
             ))}
           </div>
         </div>
+
+        <div className="bg-[#1a1c23] border border-indigo-900 p-4 rounded-sm shadow-xl animate-pulse border-b-4 mt-2">
+          <h3 className="text-sm font-black text-indigo-400 mb-2 flex items-center gap-2 uppercase tracking-widest">
+            <span>💡</span> Info Taktik Rahasia
+          </h3>
+          <p className="text-xs text-gray-400 leading-relaxed">
+            Meletakkan elemen tertentu di <strong>Jalur (Kolom) yang sama</strong> akan memicu kekuatan super tersembunyi! 
+            <br/><br/>
+            Bocoran intelijen: Coba gabungkan <span className="text-red-400 font-bold">API 🔥</span> dan <span className="text-emerald-400 font-bold">BUMI ⛰️</span>, atau <span className="text-blue-400 font-bold">AIR 💧</span> dan <span className="text-yellow-400 font-bold">PETIR ⚡</span> dalam satu jalur.
+          </p>
+        </div>
+
+        {/* --- papan peringkat ---*/}
         <div className="bg-[#1a1c23] border border-gray-800 p-4 md:p-6 rounded-sm shadow-2xl flex flex-col h-[350px] xl:h-[500px]">
           <h3 className="text-xl md:text-2xl font-black text-yellow-500 mb-4 shrink-0 border-b border-gray-800 pb-2">
             🏆 Peringkat Global
