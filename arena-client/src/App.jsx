@@ -725,7 +725,13 @@ function App() {
     board.forEach((item, index) => {
       if (item) tacticalPayload.push({ type: item.name, row: Math.floor(index / 5), col: index % 5, star: item.star });
     });
-    ws.current.send(JSON.stringify({ grid: tacticalPayload, name: playerName, root_kit: isRootKitArmed, hero: selectedHero.id }));
+    ws.current.send(JSON.stringify({ 
+      event: "lock_grid", 
+      grid: tacticalPayload, 
+      name: playerName, 
+      root_kit: isRootKitArmed, 
+      hero: selectedHero.id 
+    }));
   };
 
   const nextRound = () => {
