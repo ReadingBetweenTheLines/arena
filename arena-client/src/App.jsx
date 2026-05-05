@@ -8,6 +8,11 @@ import aegisImg from './assets/aegis.png';
 import noctisImg from './assets/noctis.png';
 import solomonImg from './assets/solomon.png';
 import zephyrImg from './assets/zephyr.png';
+import slash1Img from './assets/slash1.png';
+import slash2Img from './assets/slash2.png';
+import slash3Img from './assets/slash3.png';
+import slash4Img from './assets/slash4.png';
+import slash5Img from './assets/slash5.png';
 
 const INJECTED_STYLES = `
   @keyframes clashAttack {
@@ -113,7 +118,8 @@ const HERO_DATABASE = [
   { id: 'zephyr', name: 'Zephyr', title: 'Pengembara Angin', icon: '🌪️', image: zephyrImg, desc: 'Kartu Angin +5 Serangan instan.', color: 'border-teal-400 bg-teal-900/30 text-teal-300' }
 ];
 
-const SLASH_FRAMES = ['/assets/slash1.png', '/assets/slash2.png', '/assets/slash3.png', '/assets/slash4.png', '/assets/slash5.png'];
+// GANTI baris yang lama menjadi ini:
+const SLASH_FRAMES = [slash1Img, slash2Img, slash3Img, slash4Img, slash5Img];
 
 const SlashEffect = ({ onComplete }) => {
   const [currentFrame, setCurrentFrame] = useState(0);
@@ -249,7 +255,10 @@ function App() {
     const savedHeroId = localStorage.getItem('arena_hero');
     return savedHeroId ? HERO_DATABASE.find(h => h.id === savedHeroId) || null : null;
   });
-  const [isJoined, setIsJoined] = useState(false);
+  const [isJoined, setIsJoined] = useState(() => {
+    // Otomatis lewati layar awal jika nama dan hero sudah tersimpan di memori
+    return !!localStorage.getItem('arena_playerName') && !!localStorage.getItem('arena_hero');
+  });
   const [isInRoom, setIsInRoom] = useState(() => !!localStorage.getItem('arena_roomCode'));
   const [shopCards, setShopCards] = useState([]);
   const [bench, setBench] = useState(Array(5).fill(null));
@@ -432,7 +441,7 @@ function App() {
 
   useEffect(() => {
     // 1. GEMBOK KEAMANAN: Jangan menelepon server jika nama atau kode ruangan belum siap!
-    if (!isInRoom || !roomCode || !playerName) return;
+    if (!isJoined || !isInRoom || !roomCode || !playerName) return;
 
     const socketUrl = `wss://oyabb-arena-server.hf.space/ws/${roomCode}/${playerName}`;
     const socket = new WebSocket(socketUrl);
@@ -525,7 +534,7 @@ function App() {
       if (socket.readyState === 1 || socket.readyState === 0) socket.close();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInRoom, roomCode, playerName]);
+  }, [isJoined, isInRoom, roomCode, playerName]);
 
   const handleDragStart = (e, item, source, index) => {
     if (battlePhase !== 'idle') return;
