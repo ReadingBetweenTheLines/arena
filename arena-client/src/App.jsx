@@ -524,7 +524,8 @@ function App() {
     return () => {
       if (socket.readyState === 1 || socket.readyState === 0) socket.close();
     };
-  }, [isInRoom, roomCode, playerName, runBattleSequence]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInRoom, roomCode, playerName]);
 
   const handleDragStart = (e, item, source, index) => {
     if (battlePhase !== 'idle') return;
