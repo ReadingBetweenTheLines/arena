@@ -385,7 +385,7 @@ function App() {
     if (!isJoined) return;
 
     // Ganti ws://localhost:8000 dengan alamat Render Anda nanti saat deploy!
-    const socketUrl = `wss://username-nama-space.hf.space/ws/${roomCode}/${playerName}`;
+    const socketUrl = `wss://oyabb-arena-server.hf.space/ws/${roomCode}/${playerName}`;
     const socket = new WebSocket(socketUrl);  
 
     ws.current.onmessage = (event) => {
