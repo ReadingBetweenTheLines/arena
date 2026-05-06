@@ -445,7 +445,7 @@ function App() {
     // 1. GEMBOK KEAMANAN: Jangan menelepon server jika nama atau kode ruangan belum siap!
     if (!isJoined || !isInRoom || !roomCode || !playerName) return;
 
-    const socketUrl = `ws://localhost:8000/ws/${roomCode}/${playerName}`;
+    const socketUrl = `wss://oyabb-arena-server.hf.space/ws/${roomCode}/${playerName}`;
     const socket = new WebSocket(socketUrl);
 
     // eslint-disable-next-line
