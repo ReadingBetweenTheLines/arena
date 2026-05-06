@@ -84,6 +84,7 @@ leaderboard = {}
 # MENGUBAH SERVER MENJADI SISTEM KAMAR (ROOMS)
 # rooms = { "KODE_RUANGAN": { data_pertandingan } }
 rooms = {}
+lobby_players = {}
 
 CARD_DB = {
     # API / FIRE
@@ -294,6 +295,66 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
     global waiting_random_room
     await websocket.accept()
 
+    actual_room_code = room_code
+    
+    if room_code == "LOBBY":
+        lobby_players[player_name] = websocket
+        
+        # Fungsi untuk mengumumkan daftar orang di lobi ke semua orang
+        async def broadcast_lobby():
+            active_names = list(lobby_players.keys())
+            for ws in list(lobby_players.values()):
+                try:
+                    await ws.send_text(json.dumps({
+                        "event": "lobby_update",
+                        "players": active_names
+                    }))
+                except:
+                    pass
+
+        await broadcast_lobby() # Beritahu semua orang bahwa kita masuk!
+
+        try:
+            while True:
+                data = await websocket.receive_text()
+                payload = json.loads(data)
+
+                # Jika ada yang menekan tombol "Tantang"
+                if payload.get("event") == "challenge":
+                    target = payload.get("target")
+                    if target in lobby_players:
+                        # Kirim surat tantangan ke target
+                        await lobby_players[target].send_text(json.dumps({
+                            "event": "incoming_challenge",
+                            "challenger": player_name
+                        }))
+                
+                # Jika target menekan "Terima Tantangan"
+                elif payload.get("event") == "accept_challenge":
+                    challenger = payload.get("target")
+                    # Buat kode ruangan rahasia untuk mereka berdua
+                    new_battle_room = f"BATTLE_{uuid.uuid4().hex[:6].upper()}"
+                    
+                    # Kirim tiket VIP (kode ruangan) ke kedua pemain
+                    move_cmd = json.dumps({
+                        "event": "move_to_room", 
+                        "room_code": new_battle_room
+                    })
+                    await websocket.send_text(move_cmd) # Ke penerima
+                    if challenger in lobby_players:
+                        await lobby_players[challenger].send_text(move_cmd) # Ke penantang
+
+        except WebSocketDisconnect:
+            if player_name in lobby_players:
+                del lobby_players[player_name]
+            await broadcast_lobby() # Beritahu semua orang bahwa kita keluar
+        
+        return # BERHENTI DI SINI. Jangan jalankan kode pertarungan di bawah!
+    # ==========================================
+    # AKHIR ATURAN LOBBY
+    # ==========================================
+
+    # (👇 Kode di bawah ini tetap sama seperti milik Anda sebelumnya 👇)
     actual_room_code = room_code
 
     if room_code == "RANDOM":

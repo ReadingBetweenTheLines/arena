@@ -293,6 +293,8 @@ function App() {
 
   const [globalLeaderboard, setGlobalLeaderboard] = useState({});
   const [isOpponentDisconnected, setIsOpponentDisconnected] = useState(false);
+  const [lobbyPlayers, setLobbyPlayers] = useState([]);
+  const [incomingChallenge, setIncomingChallenge] = useState(null);
 
   // 2. SIMPAN NAMA PEMAIN SECARA OTOMATIS
   useEffect(() => {
@@ -470,6 +472,22 @@ function App() {
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
 
+      if (data.event === "lobby_update") {
+        setLobbyPlayers(data.players);
+      }
+
+      if (data.event === "incoming_challenge") {
+        playSound('error'); // Bunyi peringatan agar pemain sadar
+        setIncomingChallenge(data.challenger);
+      }
+
+      if (data.event === "move_to_room") {
+        setRoomCode(data.room_code);
+        setIncomingChallenge(null);
+        rollShop(); // Beri kartu baru untuk pertandingan
+        // (React akan otomatis menutup koneksi lobi dan berpindah ke koneksi ruangan pertarungan!)
+      }
+
       if (data.event === "opponent_disconnected") {
         playSound('error');
         setIsOpponentDisconnected(true);
@@ -478,16 +496,16 @@ function App() {
       if (data.event === "match_start" || data.event === "match_resume") {
         setIsMatchStarted(true);
         setBadSectors(data.bad_sectors);
-        
+
         // Cek identitas
         const isP1 = data.p1_name === playerName;
-        
+
         // Gunakan isP1 untuk menentukan siapa yang dapat HP mana
         if (data.P1_MaxHP !== undefined) setMyMaxHP(isP1 ? data.P1_MaxHP : data.P2_MaxHP);
         if (data.P2_MaxHP !== undefined) setOpponentMaxHP(isP1 ? data.P2_MaxHP : data.P1_MaxHP);
         if (data.P1_HP !== undefined) setMyHP(isP1 ? data.P1_HP : data.P2_HP);
         if (data.P2_HP !== undefined) setOpponentHP(isP1 ? data.P2_HP : data.P1_HP);
-        
+
         if (data.Leaderboard) setGlobalLeaderboard(data.Leaderboard);
         if (data.p1_name && data.p2_name) {
           const opponent = data.p1_name === playerName ? data.p2_name : data.p1_name;
@@ -781,6 +799,7 @@ function App() {
     if (ws.current) ws.current.close();
     setBattleResult(null);
     setBattlePhase('idle');
+    setRoomCode("LOBBY");
     setIsInRoom(false); // Ini akan otomatis menghapus memori ruangan di localStorage!
 
     if (roomCode === "RANDOM" || isOpponentDisconnected) {
@@ -792,7 +811,7 @@ function App() {
     setBench(Array(5).fill(null));
     setEnergy(15);
     setCurrentRound(1);
-    setIsMatchStarted(false);
+    setIsMatchStarted(true);
 
     // --- PENYESUAIAN HP AWAL UNTUK HERO BARU ---
     let startingHP = 100;
@@ -849,6 +868,8 @@ function App() {
               if (playerName && selectedHero) {
                 setIsNameLocked(true);
                 setIsJoined(true);
+                setRoomCode("LOBBY");
+                setIsInRoom(true);
               } else playSound('error');
             }}
             className={`w-full py-4 mt-8 text-white font-bold rounded-sm text-xl transition-all shadow-lg ${playerName && selectedHero ? 'bg-gradient-to-r from-blue-700 to-blue-600 border border-blue-400' : 'bg-gray-800 border border-gray-700 cursor-not-allowed opacity-50'}`}
@@ -860,62 +881,89 @@ function App() {
     );
   }
 
-  if (!isInRoom) {
+  if (roomCode === "LOBBY" || !isInRoom) {
     return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4">
-        <div className="bg-[#1a1c23] p-8 rounded-sm border-2 border-yellow-600 shadow-2xl max-w-md w-full text-center">
-          <div className="mb-6">
-            <span className="text-6xl drop-shadow-lg">{selectedHero?.icon}</span>
-            <h2 className="text-2xl font-black text-yellow-400 mt-2">HALO, {playerName}!</h2>
-            <p className="text-gray-500 text-xs uppercase tracking-widest">{selectedHero?.title}</p>
+      <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-800 via-[#0a0a0c] to-black flex flex-col items-center justify-center p-4 text-gray-100 font-sans relative">
+
+        {/* 👇 POPUP JIKA ADA YANG MENANTANG 👇 */}
+        {incomingChallenge && (
+          <div className="absolute inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-[#1a1c23] border-2 border-red-500 p-8 rounded-sm shadow-[0_0_50px_rgba(220,38,38,0.5)] text-center animate-headShake">
+              <span className="text-6xl mb-4 block drop-shadow-md">⚔️</span>
+              <h2 className="text-3xl font-black text-red-500 mb-2 uppercase drop-shadow-[0_0_10px_red]">TANTANGAN MASUK!</h2>
+              <p className="text-xl text-gray-300 mb-8">
+                <span className="text-white font-bold">{incomingChallenge}</span> mengajak Anda bertarung!
+              </p>
+              <div className="flex gap-4 justify-center">
+                <button onClick={() => setIncomingChallenge(null)} className="px-6 py-3 border border-gray-600 text-gray-400 font-bold rounded-sm hover:bg-gray-800 transition-all">
+                  TOLAK
+                </button>
+                <button onClick={() => {
+                  if (ws.current) ws.current.send(JSON.stringify({ event: 'accept_challenge', target: incomingChallenge }));
+                  setIncomingChallenge(null);
+                }} className="px-6 py-3 bg-gradient-to-r from-red-700 to-red-800 text-white font-black border border-red-500 rounded-sm shadow-[0_0_20px_rgba(220,38,38,0.5)] hover:scale-105 active:scale-95 transition-all">
+                  TERIMA TANTANGAN!
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="w-full max-w-2xl bg-[#1a1c23] border border-yellow-600/50 rounded-sm shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col h-[80vh] relative z-10">
+
+          {/* HEADER LOBI */}
+          <div className="p-6 bg-black/40 border-b border-gray-800 text-center relative">
+            <button onClick={() => { setIsJoined(false); setRoomCode(""); setIsInRoom(false); }} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-white text-sm font-bold transition-all">
+              {"< GANTI HERO"}
+            </button>
+            <h1 className="text-3xl font-black text-yellow-400 tracking-widest drop-shadow-md">LOBI UTAMA</h1>
+            <p className="text-sm text-gray-400 mt-1 uppercase">Petarung: <span className="text-white font-bold">{playerName}</span></p>
           </div>
 
-          <p className="text-gray-400 text-sm mb-4 italic">Main dengan teman (Isi kode meja):</p>
+          {/* DAFTAR PEMAIN */}
+          <div className="flex-grow p-6 overflow-y-auto">
+            <h3 className="text-lg font-bold text-gray-500 mb-4 tracking-widest uppercase flex justify-between items-center">
+              <span>Radar Petarung Aktif</span>
+              <span className="text-xs bg-green-900/50 text-green-400 px-2 py-1 border border-green-500/50 rounded-sm animate-pulse">
+                {lobbyPlayers.length} Online
+              </span>
+            </h3>
 
-          <input
-            type="text"
-            placeholder="KODE RUANG (Cth: MEJA-1)"
-            maxLength="10"
-            value={roomCode}
-            onChange={(e) => setRoomCode(e.target.value.toUpperCase().replace(/\s/g, '-'))}
-            className="w-full bg-black/50 border border-gray-600 shadow-inner rounded-sm p-4 text-3xl font-black text-center text-yellow-400 outline-none focus:border-yellow-400 mb-4 uppercase font-mono tracking-widest"
-          />
-
-          <button
-            onClick={() => {
-              if (roomCode && roomCode !== "RANDOM") {
-                setIsInRoom(true);
-                rollShop();
-              } else playSound('error');
-            }}
-            className={`w-full py-4 text-white font-black rounded-sm text-xl transition-all shadow-lg ${roomCode && roomCode !== "RANDOM" ? 'bg-gradient-to-r from-green-700 to-green-600 border border-green-500 hover:scale-105' : 'bg-gray-800 opacity-50 cursor-not-allowed'}`}
-          >
-            GABUNG MEJA TEMAN
-          </button>
-
-          <div className="flex items-center my-6">
-            <hr className="flex-grow border-gray-700" />
-            <span className="px-3 text-gray-500 text-xs font-bold uppercase tracking-widest">Atau</span>
-            <hr className="flex-grow border-gray-700" />
+            {lobbyPlayers.length <= 1 ? (
+              <div className="text-center text-gray-500 italic py-20 bg-black/30 border border-dashed border-gray-700 rounded-sm">
+                <span className="text-4xl block mb-3 opacity-50">📡</span>
+                Sedang mencari petarung lain...
+              </div>
+            ) : (
+              <div className="grid gap-3">
+                {lobbyPlayers.filter(p => p !== playerName).map((p, idx) => (
+                  <div key={idx} className="bg-black/50 border border-gray-700 p-4 rounded-sm flex justify-between items-center hover:border-gray-500 transition-all shadow-inner">
+                    <span className="text-xl font-bold text-gray-200 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                      {p}
+                    </span>
+                    <button onClick={() => {
+                      if (ws.current) ws.current.send(JSON.stringify({ event: 'challenge', target: p }));
+                      alert(`Surat tantangan telah dikirim ke ${p}! Menunggu jawaban...`);
+                    }} className="px-4 py-2 bg-[#1a1c23] border border-blue-500 text-blue-400 hover:bg-blue-900/50 font-bold rounded-sm shadow-[0_0_10px_rgba(37,99,235,0.2)] active:scale-95 transition-all text-sm uppercase">
+                      TANTANG ⚔️
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          <button
-            onClick={() => {
+          {/* TOMBOL ACAK (FALLBACK) */}
+          <div className="p-6 bg-black/40 border-t border-gray-800">
+            <p className="text-center text-gray-500 text-xs mb-4 uppercase tracking-widest">Tidak ada yang merespon?</p>
+            <button onClick={() => {
               setRoomCode("RANDOM");
-              setIsInRoom(true);
               rollShop();
-            }}
-            className="w-full py-5 text-white font-black rounded-sm text-2xl transition-all shadow-[0_0_20px_rgba(37,99,235,0.4)] bg-gradient-to-r from-blue-700 to-blue-600 border border-blue-400 hover:scale-105 animate-pulse"
-          >
-            CARI LAWAN ACAK 🌍
-          </button>
-
-          <button
-            onClick={() => setIsJoined(false)}
-            className="mt-6 text-gray-500 text-xs underline hover:text-gray-300 transition-all"
-          >
-            Ganti Pahlawan (Nama Terkunci)
-          </button>
+            }} className="w-full py-4 text-white font-black rounded-sm text-xl transition-all shadow-lg bg-gradient-to-r from-blue-700 to-blue-600 border border-blue-400 hover:scale-105">
+              CARI LAWAN ACAK 🌍
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -1224,18 +1272,18 @@ function App() {
           <div className="animate-fadeIn p-8 bg-[#0b0c10] rounded-sm border-4 border-[#1a1c23] text-center shadow-[0_0_50px_rgba(0,0,0,1)] max-w-5xl mx-auto flex-grow flex flex-col justify-center">
             <div className="text-sm font-mono text-gray-600 tracking-widest mb-10 drop-shadow-md">STATUS :: PERTARUNGAN SELESAI</div>
             <div className="flex justify-center items-stretch gap-10 mb-12">
-              <ResultStats 
-                title={playerName} 
-                stats={battleResult.p1_name === playerName ? battleResult.Player_1_Stats : battleResult.Player_2_Stats} 
-                dmgTaken={battleResult.p1_name === playerName ? battleResult.P1_Damage_Taken : battleResult.P2_Damage_Taken} 
-                usedRootKit={battleResult.p1_name === playerName ? battleResult.P1_Used_RootKit : battleResult.P2_Used_RootKit} 
+              <ResultStats
+                title={playerName}
+                stats={battleResult.p1_name === playerName ? battleResult.Player_1_Stats : battleResult.Player_2_Stats}
+                dmgTaken={battleResult.p1_name === playerName ? battleResult.P1_Damage_Taken : battleResult.P2_Damage_Taken}
+                usedRootKit={battleResult.p1_name === playerName ? battleResult.P1_Used_RootKit : battleResult.P2_Used_RootKit}
               />
               <div className="text-6xl font-black text-gray-800 italic flex items-center drop-shadow-lg">vs</div>
-              <ResultStats 
-                title={opponentName} 
-                stats={battleResult.p1_name === playerName ? battleResult.Player_2_Stats : battleResult.Player_1_Stats} 
-                dmgTaken={battleResult.p1_name === playerName ? battleResult.P2_Damage_Taken : battleResult.P1_Damage_Taken} 
-                usedRootKit={battleResult.p1_name === playerName ? battleResult.P2_Used_RootKit : battleResult.P1_Used_RootKit} 
+              <ResultStats
+                title={opponentName}
+                stats={battleResult.p1_name === playerName ? battleResult.Player_2_Stats : battleResult.Player_1_Stats}
+                dmgTaken={battleResult.p1_name === playerName ? battleResult.P2_Damage_Taken : battleResult.P1_Damage_Taken}
+                usedRootKit={battleResult.p1_name === playerName ? battleResult.P2_Used_RootKit : battleResult.P1_Used_RootKit}
               />
             </div>
             <div className="py-6 bg-[#1a1c23] rounded-sm mb-10 border border-gray-800 shadow-inner">
