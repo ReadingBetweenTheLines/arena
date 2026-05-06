@@ -916,34 +916,15 @@ function App() {
                 <span className="text-white font-bold">{incomingChallenge}</span> mengajak Anda bertarung!
               </p>
               <div className="flex gap-4 justify-center mt-8">
-                {rematchStatus === "incoming" ? (
-                  <>
-                    <button onClick={() => { ws.current.send(JSON.stringify({ event: "vote_rematch" })); setRematchStatus("waiting"); }} className="py-4 px-8 bg-green-700 text-white font-black border border-green-500 rounded-sm shadow-[0_0_20px_rgba(22,163,74,0.5)] hover:scale-105 transition-all">
-                      TERIMA REMATCH!
-                    </button>
-                    <button onClick={() => { ws.current.send(JSON.stringify({ event: "leave_match" })); setTimeout(handleRematch, 100); }} className="py-4 px-8 border border-gray-600 text-gray-400 font-bold rounded-sm hover:bg-gray-800 transition-all">
-                      TOLAK & KEMBALI LOBI
-                    </button>
-                  </>
-                ) : rematchStatus === "waiting" ? (
-                  <>
-                    <div className="py-4 px-8 bg-gray-800 text-gray-400 font-bold border border-gray-600 rounded-sm animate-pulse">
-                      Menunggu respon lawan...
-                    </div>
-                    <button onClick={() => { ws.current.send(JSON.stringify({ event: "leave_match" })); setTimeout(handleRematch, 100); }} className="py-4 px-8 border border-red-800 text-red-400 font-bold rounded-sm hover:bg-red-900/40 transition-all">
-                      BATALKAN KEMBALI
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button onClick={() => { ws.current.send(JSON.stringify({ event: "vote_rematch" })); setRematchStatus("waiting"); }} className="py-4 px-12 bg-blue-800 border border-blue-500 text-white text-xl font-bold rounded-sm hover:bg-blue-700 shadow-2xl transition active:scale-95">
-                      AJAK REMATCH 🔄
-                    </button>
-                    <button onClick={() => { ws.current.send(JSON.stringify({ event: "leave_match" })); setTimeout(handleRematch, 100); }} className="py-4 px-8 border border-gray-600 text-gray-400 font-bold rounded-sm hover:bg-gray-800 transition-all">
-                      KEMBALI KE LOBI
-                    </button>
-                  </>
-                )}
+                <button onClick={() => setIncomingChallenge(null)} className="px-6 py-3 border border-gray-600 text-gray-400 font-bold rounded-sm hover:bg-gray-800 transition-all">
+                  TOLAK
+                </button>
+                <button onClick={() => {
+                  if (ws.current) ws.current.send(JSON.stringify({ event: 'accept_challenge', target: incomingChallenge }));
+                  setIncomingChallenge(null);
+                }} className="px-6 py-3 bg-gradient-to-r from-red-700 to-red-800 text-white font-black border border-red-500 rounded-sm shadow-[0_0_20px_rgba(220,38,38,0.5)] hover:scale-105 active:scale-95 transition-all">
+                  TERIMA TANTANGAN!
+                </button>
               </div>
             </div>
           </div>
@@ -1365,12 +1346,36 @@ function App() {
                 <h1 className="text-8xl font-black tracking-tighter text-red-600 leading-none mb-4 drop-shadow-[0_0_20px_rgba(220,38,38,0.5)]">
                   PERTANDINGAN SELESAI
                 </h1>
-                <button
-                  onClick={handleRematch}
-                  className="mt-8 py-4 px-12 bg-blue-800 border border-blue-500 text-white text-xl font-bold rounded-sm hover:bg-blue-700 shadow-2xl transition active:scale-95"
-                >
-                  CARI LAWAN LAGI (KEMBALI KE LOBI)
-                </button>
+                <div className="flex gap-4 justify-center mt-8">
+                  {rematchStatus === "incoming" ? (
+                    <>
+                      <button onClick={() => { ws.current.send(JSON.stringify({ event: "vote_rematch" })); setRematchStatus("waiting"); }} className="py-4 px-8 bg-green-700 text-white font-black border border-green-500 rounded-sm shadow-[0_0_20px_rgba(22,163,74,0.5)] hover:scale-105 transition-all">
+                        TERIMA REMATCH!
+                      </button>
+                      <button onClick={() => { ws.current.send(JSON.stringify({ event: "leave_match" })); setTimeout(handleRematch, 100); }} className="py-4 px-8 border border-gray-600 text-gray-400 font-bold rounded-sm hover:bg-gray-800 transition-all">
+                        TOLAK & KEMBALI LOBI
+                      </button>
+                    </>
+                  ) : rematchStatus === "waiting" ? (
+                    <>
+                      <div className="py-4 px-8 bg-gray-800 text-gray-400 font-bold border border-gray-600 rounded-sm animate-pulse">
+                        Menunggu respon lawan...
+                      </div>
+                      <button onClick={() => { ws.current.send(JSON.stringify({ event: "leave_match" })); setTimeout(handleRematch, 100); }} className="py-4 px-8 border border-red-800 text-red-400 font-bold rounded-sm hover:bg-red-900/40 transition-all">
+                        BATALKAN & KEMBALI
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button onClick={() => { ws.current.send(JSON.stringify({ event: "vote_rematch" })); setRematchStatus("waiting"); }} className="py-4 px-12 bg-blue-800 border border-blue-500 text-white text-xl font-bold rounded-sm hover:bg-blue-700 shadow-2xl transition active:scale-95">
+                        AJAK REMATCH 🔄
+                      </button>
+                      <button onClick={() => { ws.current.send(JSON.stringify({ event: "leave_match" })); setTimeout(handleRematch, 100); }} className="py-4 px-8 border border-gray-600 text-gray-400 font-bold rounded-sm hover:bg-gray-800 transition-all">
+                        KEMBALI KE LOBI
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             ) : (
               <button onClick={nextRound} className="py-5 px-16 border bg-gradient-to-r from-green-800 to-green-900 border-green-500 text-white text-2xl font-black tracking-tight rounded-sm hover:from-green-700 hover:to-green-800 shadow-[0_10px_30px_rgba(22,163,74,0.3)] transition-all active:scale-95">

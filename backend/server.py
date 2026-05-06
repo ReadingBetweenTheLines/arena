@@ -402,58 +402,7 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
                                 await p.send_text(json.dumps(surrender_result))
                             except:
                                 pass
-                # 👇 3. FITUR REMATCH & LEAVE MATCH 👇
-                elif payload.get("event") == "vote_rematch":
-                    if "rematch_votes" not in room:
-                        room["rematch_votes"] = []
-                    if player_id not in room["rematch_votes"]:
-                        room["rematch_votes"].append(player_id)
                 
-                    if len(room["rematch_votes"]) == 2: # Jika KEDUA pemain setuju Rematch
-                        room["rematch_votes"].clear()
-                        # Reset ruangan menjadi ronde 1
-                        room["player_hp"]["Player_1"] = room.get("player_max_hp", {}).get("Player_1", 100)
-                        room["player_hp"]["Player_2"] = room.get("player_max_hp", {}).get("Player_2", 100)
-                        room["player_overload"] = {"Player_1": 0, "Player_2": 0}
-                        room["lane_status"] = {"Player_1": [""]*5, "Player_2": [""]*5}
-                        room["is_first_round"] = True
-                        room["current_round"] = 1
-                        room["current_bad_sectors"] = []
-                        room["player_moves"].clear()
-                        room["player_grids"] = {"Player_1": [None]*15, "Player_2": [None]*15}
-                        room["player_bench"] = {"Player_1": [None]*5, "Player_2": [None]*5}
-                    
-                        for player in room["connected_players"]:
-                            await player.send_text(json.dumps({
-                                "event": "match_start",
-                                "room_code": actual_room_code,
-                                "bad_sectors": room["current_bad_sectors"],
-                                "p1_name": room["player_names"].get("Player_1"),
-                                "p2_name": room["player_names"].get("Player_2"),
-                                "P1_MaxHP": room["player_max_hp"]["Player_1"],
-                                "P2_MaxHP": room["player_max_hp"]["Player_2"],
-                                "Leaderboard": dict(sorted(global_leaderboard.items(), key=lambda item: (item[1].get("wins", 0), item[1].get("damage", 0)), reverse=True))
-                            }))
-                    else:
-                        # Beritahu lawan bahwa kita mengajak Rematch
-                        for p in room["connected_players"]:
-                            if p != websocket:
-                                try:
-                                    await p.send_text(json.dumps({"event": "incoming_rematch"}))
-                                except:
-                                    pass
-            
-                elif payload.get("event") == "leave_match":
-                    # Bubarkan pertandingan dengan anggun (Lawan otomatis ditarik ke Lobi)
-                    for p in room["connected_players"]:
-                        if p != websocket:
-                            try:
-                                await p.send_text(json.dumps({"event": "match_dissolved"}))
-                            except:
-                                pass
-                    if actual_room_code in rooms:
-                        del rooms[actual_room_code]
-            # 👆 SELESAI FITUR REMATCH 👆
         except WebSocketDisconnect:
             if player_name in lobby_players:
                 del lobby_players[player_name]
@@ -674,7 +623,58 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
                 continue
             # 👆 SELESAI TAMBAH FITUR MENYERAH 👆
             
+            # 👇 3. FITUR REMATCH & LEAVE MATCH 👇
+            elif payload.get("event") == "vote_rematch":
+                if "rematch_votes" not in room:
+                    room["rematch_votes"] = []
+                if player_id not in room["rematch_votes"]:
+                    room["rematch_votes"].append(player_id)
+                
+                if len(room["rematch_votes"]) == 2: # Jika KEDUA pemain setuju Rematch
+                    room["rematch_votes"].clear()
+                    # Reset ruangan menjadi ronde 1
+                    room["player_hp"]["Player_1"] = room.get("player_max_hp", {}).get("Player_1", 100)
+                    room["player_hp"]["Player_2"] = room.get("player_max_hp", {}).get("Player_2", 100)
+                    room["player_overload"] = {"Player_1": 0, "Player_2": 0}
+                    room["lane_status"] = {"Player_1": [""]*5, "Player_2": [""]*5}
+                    room["is_first_round"] = True
+                    room["current_round"] = 1
+                    room["current_bad_sectors"] = []
+                    room["player_moves"].clear()
+                    room["player_grids"] = {"Player_1": [None]*15, "Player_2": [None]*15}
+                    room["player_bench"] = {"Player_1": [None]*5, "Player_2": [None]*5}
+                    
+                    for player in room["connected_players"]:
+                        await player.send_text(json.dumps({
+                            "event": "match_start",
+                            "room_code": actual_room_code,
+                            "bad_sectors": room["current_bad_sectors"],
+                            "p1_name": room["player_names"].get("Player_1"),
+                            "p2_name": room["player_names"].get("Player_2"),
+                            "P1_MaxHP": room["player_max_hp"]["Player_1"],
+                            "P2_MaxHP": room["player_max_hp"]["Player_2"],
+                            "Leaderboard": dict(sorted(global_leaderboard.items(), key=lambda item: (item[1].get("wins", 0), item[1].get("damage", 0)), reverse=True))
+                        }))
+                else:
+                    # Beritahu lawan bahwa kita mengajak Rematch
+                    for p in room["connected_players"]:
+                        if p != websocket:
+                            try:
+                                await p.send_text(json.dumps({"event": "incoming_rematch"}))
+                            except:
+                                pass
             
+            elif payload.get("event") == "leave_match":
+                # Bubarkan pertandingan dengan anggun (Lawan otomatis ditarik ke Lobi)
+                for p in room["connected_players"]:
+                    if p != websocket:
+                        try:
+                            await p.send_text(json.dumps({"event": "match_dissolved"}))
+                        except:
+                            pass
+                if actual_room_code in rooms:
+                    del rooms[actual_room_code]
+            # 👆 SELESAI FITUR REMATCH 👆
             
             # 4. ABAIKAN SEMUA PESAN ISENG LAINNYA
             else:
