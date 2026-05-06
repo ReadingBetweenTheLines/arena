@@ -3,12 +3,14 @@ import json
 import random
 import os
 import uuid
+from huggingface_hub import HfApi
 
 # Tentukan nama file penyimpanan
 DB_FILE = "leaderboard_data.json"
 waiting_random_room = None
 
-
+HF_TOKEN = os.environ.get("HF_TOKEN")
+REPO_ID = "Oyabb/arena-server"
 def load_leaderboard():
     if os.path.exists(DB_FILE):
         try:
@@ -25,8 +27,24 @@ def load_leaderboard():
 
 
 def save_leaderboard(data):
+    # 1. Simpan ke mesin lokal sementara
     with open(DB_FILE, "w") as f:
         json.dump(data, f, indent=4)
+        
+    # 👇 2. TAMBAHKAN BLOK INI: Upload otomatis ke Repositori Hugging Face! 👇
+    if HF_TOKEN:
+        try:
+            api = HfApi()
+            api.upload_file(
+                path_or_fileobj=DB_FILE,
+                path_in_repo=DB_FILE,
+                repo_id=REPO_ID,
+                repo_type="space",
+                token=HF_TOKEN
+            )
+            print("Berhasil mem-backup skor ke repositori!")
+        except Exception as e:
+            print(f"Gagal backup: {e}")
 
 
 # Inisialisasi leaderboard dari file saat server start
