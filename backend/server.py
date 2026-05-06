@@ -313,6 +313,23 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
                     pass
 
         await broadcast_lobby() # Beritahu semua orang bahwa kita masuk!
+        
+        ongoing_room = None
+        opp_name = "Lawan"
+        for r_code, r_data in rooms.items():
+            if player_name in r_data["player_names"].values():
+                ongoing_room = r_code
+                for pid, n in r_data["player_names"].items():
+                    if n and n != player_name:
+                        opp_name = n
+                break
+
+        if ongoing_room:
+            await websocket.send_text(json.dumps({
+                "event": "unresolved_match",
+                "room_code": ongoing_room,
+                "opponent": opp_name
+            }))
 
         try:
             while True:
@@ -343,7 +360,100 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
                     await websocket.send_text(move_cmd) # Ke penerima
                     if challenger in lobby_players:
                         await lobby_players[challenger].send_text(move_cmd) # Ke penantang
-
+                
+                elif payload.get("event") == "surrender_unresolved":
+                    target_room = payload.get("room_code")
+                    if target_room in rooms:
+                        r = rooms[target_room]
+                        pid = "Player_1" if r["player_names"].get("Player_1") == player_name else "Player_2"
+                        opp_id = "Player_2" if pid == "Player_1" else "Player_1"
+                        
+                        r["player_hp"][pid] = 0
+                        r["player_names"][pid] = None # Bebaskan nama agar tidak nyangkut
+                        
+                        winner_name = r["player_names"].get(opp_id)
+                        
+                        if winner_name:
+                            if winner_name not in global_leaderboard:
+                                global_leaderboard[winner_name] = {"wins": 0, "damage": 0}
+                            global_leaderboard[winner_name]["wins"] += 1
+                            save_leaderboard(global_leaderboard)
+                        
+                        sorted_lb = dict(sorted(global_leaderboard.items(), key=lambda item: (item[1].get("wins", 0), item[1].get("damage", 0)), reverse=True))
+                        
+                        # Buat hasil kekalahan instan
+                        surrender_result = {
+                            "event": "battle_sequence",
+                            "p1_name": r["player_names"]["Player_1"], "p2_name": r["player_names"]["Player_2"], 
+                            "logs": [{"type": "clash", "lane": 2, "p1_action": {"atk":0, "def":0, "pierce":0, "faction":""}, "p2_action": {"atk":0, "def":0, "pierce":0, "faction":""}, "p1_dmg_received": 0, "p2_dmg_received": 0, "p1_status_applied": "", "p2_status_applied": "", "reaction_triggered": f"{player_name} MENYERAH!"}],
+                            "Player_1_Stats": {"attack": 0, "defense": 0, "penalty": 0}, "Player_2_Stats": {"attack": 0, "defense": 0, "penalty": 0},
+                            "Player_1_HP": r["player_hp"]["Player_1"], "Player_2_HP": r["player_hp"]["Player_2"],
+                            "P1_MaxHP": r["player_max_hp"]["Player_1"], "P2_MaxHP": r["player_max_hp"]["Player_2"],
+                            "Player_1_Overload": r["player_overload"]["Player_1"], "Player_2_Overload": r["player_overload"]["Player_2"],
+                            "P1_Lane_Status": r["lane_status"]["Player_1"], "P2_Lane_Status": r["lane_status"]["Player_2"],
+                            "P1_Damage_Taken": 0, "P2_Damage_Taken": 0, "P1_Used_RootKit": False, "P2_Used_RootKit": False,
+                            "Round_Winner": winner_name if winner_name else "Lawan", "Game_Over": True,
+                            "Leaderboard": sorted_lb, "Next_Bad_Sectors": [],
+                        }
+                        
+                        # Beritahu lawan yang (mungkin) masih menunggu di dalam arena bahwa dia menang!
+                        for p in r["connected_players"]:
+                            try:
+                                await p.send_text(json.dumps(surrender_result))
+                            except:
+                                pass
+                # 👇 3. FITUR REMATCH & LEAVE MATCH 👇
+                elif payload.get("event") == "vote_rematch":
+                    if "rematch_votes" not in room:
+                        room["rematch_votes"] = []
+                    if player_id not in room["rematch_votes"]:
+                        room["rematch_votes"].append(player_id)
+                
+                    if len(room["rematch_votes"]) == 2: # Jika KEDUA pemain setuju Rematch
+                        room["rematch_votes"].clear()
+                        # Reset ruangan menjadi ronde 1
+                        room["player_hp"]["Player_1"] = room.get("player_max_hp", {}).get("Player_1", 100)
+                        room["player_hp"]["Player_2"] = room.get("player_max_hp", {}).get("Player_2", 100)
+                        room["player_overload"] = {"Player_1": 0, "Player_2": 0}
+                        room["lane_status"] = {"Player_1": [""]*5, "Player_2": [""]*5}
+                        room["is_first_round"] = True
+                        room["current_round"] = 1
+                        room["current_bad_sectors"] = []
+                        room["player_moves"].clear()
+                        room["player_grids"] = {"Player_1": [None]*15, "Player_2": [None]*15}
+                        room["player_bench"] = {"Player_1": [None]*5, "Player_2": [None]*5}
+                    
+                        for player in room["connected_players"]:
+                            await player.send_text(json.dumps({
+                                "event": "match_start",
+                                "room_code": actual_room_code,
+                                "bad_sectors": room["current_bad_sectors"],
+                                "p1_name": room["player_names"].get("Player_1"),
+                                "p2_name": room["player_names"].get("Player_2"),
+                                "P1_MaxHP": room["player_max_hp"]["Player_1"],
+                                "P2_MaxHP": room["player_max_hp"]["Player_2"],
+                                "Leaderboard": dict(sorted(global_leaderboard.items(), key=lambda item: (item[1].get("wins", 0), item[1].get("damage", 0)), reverse=True))
+                            }))
+                    else:
+                        # Beritahu lawan bahwa kita mengajak Rematch
+                        for p in room["connected_players"]:
+                            if p != websocket:
+                                try:
+                                    await p.send_text(json.dumps({"event": "incoming_rematch"}))
+                                except:
+                                    pass
+            
+                elif payload.get("event") == "leave_match":
+                    # Bubarkan pertandingan dengan anggun (Lawan otomatis ditarik ke Lobi)
+                    for p in room["connected_players"]:
+                        if p != websocket:
+                            try:
+                                await p.send_text(json.dumps({"event": "match_dissolved"}))
+                            except:
+                                pass
+                    if actual_room_code in rooms:
+                        del rooms[actual_room_code]
+            # 👆 SELESAI FITUR REMATCH 👆
         except WebSocketDisconnect:
             if player_name in lobby_players:
                 del lobby_players[player_name]
@@ -563,6 +673,8 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
                 room["player_moves"].clear()
                 continue
             # 👆 SELESAI TAMBAH FITUR MENYERAH 👆
+            
+            
             
             # 4. ABAIKAN SEMUA PESAN ISENG LAINNYA
             else:

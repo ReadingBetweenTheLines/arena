@@ -295,6 +295,8 @@ function App() {
   const [isOpponentDisconnected, setIsOpponentDisconnected] = useState(false);
   const [lobbyPlayers, setLobbyPlayers] = useState([]);
   const [incomingChallenge, setIncomingChallenge] = useState(null);
+  const [unresolvedMatch, setUnresolvedMatch] = useState(null);
+  const [rematchStatus, setRematchStatus] = useState("");
 
   // 2. SIMPAN NAMA PEMAIN SECARA OTOMATIS
   useEffect(() => {
@@ -488,6 +490,20 @@ function App() {
         // (React akan otomatis menutup koneksi lobi dan berpindah ke koneksi ruangan pertarungan!)
       }
 
+      if (data.event === "incoming_rematch") {
+        playSound('buy');
+        setRematchStatus("incoming");
+      }
+
+      if (data.event === "match_dissolved") {
+        alert("Lawan tidak memilih Rematch dan telah kembali ke lobi.");
+        setRoomCode("LOBBY");
+        setIsInRoom(true);
+        setBattleResult(null);
+        setBattlePhase('idle');
+        setRematchStatus("");
+      }
+
       if (data.event === "opponent_disconnected") {
         playSound('error');
         setIsOpponentDisconnected(true);
@@ -564,6 +580,11 @@ function App() {
           setIsOpponentDisconnected(false);
           setBattleResult(null);
           setBattlePhase('idle');
+          setRematchStatus("");
+          setBoard(Array(15).fill(null));
+          setBench(Array(5).fill(null));
+          setEnergy(15);
+          rollShop();
         }
       }
 
@@ -894,20 +915,68 @@ function App() {
               <p className="text-xl text-gray-300 mb-8">
                 <span className="text-white font-bold">{incomingChallenge}</span> mengajak Anda bertarung!
               </p>
+              <div className="flex gap-4 justify-center mt-8">
+                {rematchStatus === "incoming" ? (
+                  <>
+                    <button onClick={() => { ws.current.send(JSON.stringify({ event: "vote_rematch" })); setRematchStatus("waiting"); }} className="py-4 px-8 bg-green-700 text-white font-black border border-green-500 rounded-sm shadow-[0_0_20px_rgba(22,163,74,0.5)] hover:scale-105 transition-all">
+                      TERIMA REMATCH!
+                    </button>
+                    <button onClick={() => { ws.current.send(JSON.stringify({ event: "leave_match" })); setTimeout(handleRematch, 100); }} className="py-4 px-8 border border-gray-600 text-gray-400 font-bold rounded-sm hover:bg-gray-800 transition-all">
+                      TOLAK & KEMBALI LOBI
+                    </button>
+                  </>
+                ) : rematchStatus === "waiting" ? (
+                  <>
+                    <div className="py-4 px-8 bg-gray-800 text-gray-400 font-bold border border-gray-600 rounded-sm animate-pulse">
+                      Menunggu respon lawan...
+                    </div>
+                    <button onClick={() => { ws.current.send(JSON.stringify({ event: "leave_match" })); setTimeout(handleRematch, 100); }} className="py-4 px-8 border border-red-800 text-red-400 font-bold rounded-sm hover:bg-red-900/40 transition-all">
+                      BATALKAN KEMBALI
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={() => { ws.current.send(JSON.stringify({ event: "vote_rematch" })); setRematchStatus("waiting"); }} className="py-4 px-12 bg-blue-800 border border-blue-500 text-white text-xl font-bold rounded-sm hover:bg-blue-700 shadow-2xl transition active:scale-95">
+                      AJAK REMATCH 🔄
+                    </button>
+                    <button onClick={() => { ws.current.send(JSON.stringify({ event: "leave_match" })); setTimeout(handleRematch, 100); }} className="py-4 px-8 border border-gray-600 text-gray-400 font-bold rounded-sm hover:bg-gray-800 transition-all">
+                      KEMBALI KE LOBI
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 👇 POPUP JIKA ADA PERTANDINGAN TERPUTUS 👇 */}
+        {unresolvedMatch && (
+          <div className="absolute inset-0 z-[60] bg-black/90 flex items-center justify-center p-4 backdrop-blur-md">
+            <div className="bg-[#1a1c23] border-2 border-yellow-500 p-8 rounded-sm shadow-[0_0_50px_rgba(234,179,8,0.5)] text-center">
+              <span className="text-6xl mb-4 block drop-shadow-md animate-pulse">⚠️</span>
+              <h2 className="text-3xl font-black text-yellow-400 mb-2 uppercase drop-shadow-[0_0_10px_yellow]">PERTANDINGAN TERPUTUS!</h2>
+              <p className="text-xl text-gray-300 mb-8">
+                Anda masih memiliki pertandingan yang belum selesai melawan <span className="text-white font-bold">{unresolvedMatch.opponent}</span>.
+              </p>
               <div className="flex gap-4 justify-center">
-                <button onClick={() => setIncomingChallenge(null)} className="px-6 py-3 border border-gray-600 text-gray-400 font-bold rounded-sm hover:bg-gray-800 transition-all">
-                  TOLAK
+                <button onClick={() => {
+                  if (ws.current) ws.current.send(JSON.stringify({ event: 'surrender_unresolved', room_code: unresolvedMatch.room_code }));
+                  setUnresolvedMatch(null);
+                }} className="px-6 py-3 border border-red-600 text-red-400 font-bold rounded-sm hover:bg-red-900/40 transition-all">
+                  MENYERAH (KALAH)
                 </button>
                 <button onClick={() => {
-                  if (ws.current) ws.current.send(JSON.stringify({ event: 'accept_challenge', target: incomingChallenge }));
-                  setIncomingChallenge(null);
-                }} className="px-6 py-3 bg-gradient-to-r from-red-700 to-red-800 text-white font-black border border-red-500 rounded-sm shadow-[0_0_20px_rgba(220,38,38,0.5)] hover:scale-105 active:scale-95 transition-all">
-                  TERIMA TANTANGAN!
+                  // Langsung masuk kembali ke ruangan yang terputus!
+                  setRoomCode(unresolvedMatch.room_code);
+                  setUnresolvedMatch(null);
+                }} className="px-6 py-3 bg-gradient-to-r from-yellow-600 to-yellow-700 text-black font-black border border-yellow-400 rounded-sm shadow-[0_0_20px_rgba(234,179,8,0.5)] hover:scale-105 active:scale-95 transition-all">
+                  LANJUTKAN PERTARUNGAN!
                 </button>
               </div>
             </div>
           </div>
         )}
+        {/* 👆 AKHIR POPUP PERTANDINGAN TERPUTUS 👆 */}
 
         <div className="w-full max-w-2xl bg-[#1a1c23] border border-yellow-600/50 rounded-sm shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col h-[80vh] relative z-10">
 
