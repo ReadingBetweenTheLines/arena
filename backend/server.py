@@ -6,7 +6,8 @@ import uuid
 from huggingface_hub import HfApi
 
 # Tentukan nama file penyimpanan
-DB_FILE = "leaderboard_data.json"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_FILE = os.path.join(BASE_DIR, "leaderboard_data.json")
 waiting_random_room = None
 
 HF_TOKEN = os.environ.get("HF_TOKEN")
@@ -21,7 +22,7 @@ def load_leaderboard():
                     if isinstance(v, int):
                         data[k] = {"wins": v, "damage": 0}
                 return data
-        except:
+        except Exception as e:
             return {}
     return {}
 
@@ -37,7 +38,7 @@ def save_leaderboard(data):
             api = HfApi()
             api.upload_file(
                 path_or_fileobj=DB_FILE,
-                path_in_repo=DB_FILE,
+                path_in_repo="leaderboard_data.json",
                 repo_id=REPO_ID,
                 repo_type="space",
                 token=HF_TOKEN
