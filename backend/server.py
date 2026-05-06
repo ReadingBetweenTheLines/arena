@@ -417,6 +417,8 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
                 # Buat hasil kekalahan palsu agar animasi Game Over terpicu
                 surrender_result = {
                     "event": "battle_sequence",
+                    "p1_name": room["player_names"]["Player_1"], 
+                    "p2_name": room["player_names"]["Player_2"], 
                     "logs": [{"type": "clash", "lane": 2, "p1_action": {"atk":0, "def":0, "pierce":0, "faction":""}, "p2_action": {"atk":0, "def":0, "pierce":0, "faction":""}, "p1_dmg_received": 0, "p2_dmg_received": 0, "p1_status_applied": "", "p2_status_applied": "", "reaction_triggered": f"{room['player_names'][player_id]} MENYERAH!"}],
                     "Player_1_Stats": {"attack": 0, "defense": 0, "penalty": 0},
                     "Player_2_Stats": {"attack": 0, "defense": 0, "penalty": 0},
@@ -788,6 +790,8 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
 
                 result = {
                     "event": "battle_sequence",
+                    "p1_name": room["player_names"]["Player_1"], 
+                    "p2_name": room["player_names"]["Player_2"], 
                     "logs": combat_logs,
                     "Player_1_Stats": p1_ui,
                     "Player_2_Stats": p2_ui,

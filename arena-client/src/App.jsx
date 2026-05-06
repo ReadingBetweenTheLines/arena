@@ -358,8 +358,12 @@ function App() {
   const runBattleSequence = useCallback(async (data) => {
     setBattlePhase('clashing');
 
-    let currentSimP1HP = data.Player_1_HP + data.P1_Damage_Taken;
-    let currentSimP2HP = data.Player_2_HP + data.P2_Damage_Taken;
+    // 👇 CEK IDENTITAS SAAT BERTARUNG 👇
+    const isP1 = data.p1_name === playerName;
+
+    // Sesuaikan posisi HP berdasarkan identitas
+    let currentSimMyHP = isP1 ? (data.Player_1_HP + data.P1_Damage_Taken) : (data.Player_2_HP + data.P2_Damage_Taken);
+    let currentSimOppHP = isP1 ? (data.Player_2_HP + data.P2_Damage_Taken) : (data.Player_1_HP + data.P1_Damage_Taken);
 
     const ultimates = data.logs.filter(log => log.type === 'ultimate');
     if (ultimates.length > 0) {
@@ -369,10 +373,14 @@ function App() {
       setReactionText("");
 
       ultimates.forEach(ult => {
-        if (ult.source === 'Player_1') currentSimP2HP -= ult.damage;
-        if (ult.source === 'Player_2') currentSimP1HP -= ult.damage;
+        if (ult.source === 'Player_1') {
+          if (isP1) currentSimOppHP -= ult.damage; else currentSimMyHP -= ult.damage;
+        }
+        if (ult.source === 'Player_2') {
+          if (!isP1) currentSimOppHP -= ult.damage; else currentSimMyHP -= ult.damage;
+        }
       });
-      setMyHP(currentSimP1HP); setOpponentHP(currentSimP2HP);
+      setMyHP(currentSimMyHP); setOpponentHP(currentSimOppHP);
     }
 
     const clashLogs = data.logs.filter(log => log.type === 'clash');
@@ -403,19 +411,23 @@ function App() {
       }
 
       if (log.p1_dmg_received > 0 || log.p2_dmg_received > 0) {
-        if (log.p1_dmg_received > 0) {
+        // Sesuaikan visual animasi serangan berdasarkan identitas
+        const myDmg = isP1 ? log.p1_dmg_received : log.p2_dmg_received;
+        const oppDmg = isP1 ? log.p2_dmg_received : log.p1_dmg_received;
+
+        if (myDmg > 0) {
           triggerDamageVisual("p1"); setSlashPlayers(prev => ({ ...prev, p1: true }));
-          currentSimP1HP -= log.p1_dmg_received;
+          currentSimMyHP -= myDmg;
         }
-        if (log.p2_dmg_received > 0) {
+        if (oppDmg > 0) {
           triggerDamageVisual("p2"); setSlashPlayers(prev => ({ ...prev, p2: true }));
-          currentSimP2HP -= log.p2_dmg_received;
+          currentSimOppHP -= oppDmg;
         }
 
-        setMyHP(currentSimP1HP); setOpponentHP(currentSimP2HP);
+        setMyHP(currentSimMyHP); setOpponentHP(currentSimOppHP);
         setFloatingDamage({
-          p1: log.p1_dmg_received > 0 ? `-${log.p1_dmg_received}` : null,
-          p2: log.p2_dmg_received > 0 ? `-${log.p2_dmg_received}` : null
+          p1: myDmg > 0 ? `-${myDmg}` : null,
+          p2: oppDmg > 0 ? `-${oppDmg}` : null
         });
         playSound('error');
 
@@ -431,15 +443,18 @@ function App() {
       await new Promise(r => setTimeout(r, 200));
     }
 
-    setMyHP(data.Player_1_HP); setOpponentHP(data.Player_2_HP);
-    setMyOverload(data.Player_1_Overload); setOpponentOverload(data.Player_2_Overload);
+    setMyHP(isP1 ? data.Player_1_HP : data.Player_2_HP);
+    setOpponentHP(isP1 ? data.Player_2_HP : data.Player_1_HP);
+    setMyOverload(isP1 ? data.Player_1_Overload : data.Player_2_Overload);
+    setOpponentOverload(isP1 ? data.Player_2_Overload : data.Player_1_Overload);
 
     setBattlePhase('result');
     setBattleResult(data);
     if (data.Leaderboard) setGlobalLeaderboard(data.Leaderboard);
     if (data.Next_Bad_Sectors) setBadSectors(data.Next_Bad_Sectors);
 
-  }, [setFloatingDamage, setOpponentOverload, setReactionText, setSlashPlayers, triggerDamageVisual]);
+    // Jangan lupa 'playerName' harus masuk ke dalam kurung siku di bawah ini
+  }, [setFloatingDamage, setOpponentOverload, setReactionText, setSlashPlayers, triggerDamageVisual, playerName]);
 
   useEffect(() => {
     // 1. GEMBOK KEAMANAN: Jangan menelepon server jika nama atau kode ruangan belum siap!
@@ -463,10 +478,16 @@ function App() {
       if (data.event === "match_start" || data.event === "match_resume") {
         setIsMatchStarted(true);
         setBadSectors(data.bad_sectors);
-        if (data.P1_MaxHP) setMyMaxHP(data.P1_MaxHP);
-        if (data.P2_MaxHP) setOpponentMaxHP(data.P2_MaxHP);
-        if (data.P1_HP) setMyHP(data.P1_HP);
-        if (data.P2_HP) setOpponentHP(data.P2_HP);
+        
+        // Cek identitas
+        const isP1 = data.p1_name === playerName;
+        
+        // Gunakan isP1 untuk menentukan siapa yang dapat HP mana
+        if (data.P1_MaxHP !== undefined) setMyMaxHP(isP1 ? data.P1_MaxHP : data.P2_MaxHP);
+        if (data.P2_MaxHP !== undefined) setOpponentMaxHP(isP1 ? data.P2_MaxHP : data.P1_MaxHP);
+        if (data.P1_HP !== undefined) setMyHP(isP1 ? data.P1_HP : data.P2_HP);
+        if (data.P2_HP !== undefined) setOpponentHP(isP1 ? data.P2_HP : data.P1_HP);
+        
         if (data.Leaderboard) setGlobalLeaderboard(data.Leaderboard);
         if (data.p1_name && data.p2_name) {
           const opponent = data.p1_name === playerName ? data.p2_name : data.p1_name;
@@ -541,7 +562,7 @@ function App() {
     return () => {
       if (socket.readyState === 1 || socket.readyState === 0) socket.close();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isJoined, isInRoom, roomCode, playerName]);
 
   const handleDragStart = (e, item, source, index) => {
@@ -735,12 +756,12 @@ function App() {
     });
 
     // 👇 TAMBAHKAN event: "lock_grid" DI BARIS INI 👇
-    ws.current.send(JSON.stringify({ 
-      event: "lock_grid", 
-      grid: tacticalPayload, 
-      name: playerName, 
-      root_kit: isRootKitArmed, 
-      hero: selectedHero.id 
+    ws.current.send(JSON.stringify({
+      event: "lock_grid",
+      grid: tacticalPayload,
+      name: playerName,
+      root_kit: isRootKitArmed,
+      hero: selectedHero.id
     }));
   };
 
@@ -1002,13 +1023,13 @@ function App() {
         <header className="flex justify-between items-center mb-6 pb-4 border-b border-gray-800">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-green-500 drop-shadow-lg leading-none">ARENA ELEMEN</h1>
-            
+
             {/* 👇 TOMBOL BATAL / MENYERAH DITAMBAHKAN DI SINI 👇 */}
             <button
               onClick={() => {
                 if (!isMatchStarted) {
                   // Jika musuh belum ketemu, batalkan pencarian
-                  handleRematch(); 
+                  handleRematch();
                 } else {
                   // Jika sudah bertarung, tanyakan kepastian untuk menyerah
                   if (window.confirm("Apakah Anda yakin ingin menyerah? Pertandingan akan langsung berakhir dan lawan Anda akan dinyatakan menang.")) {
@@ -1023,7 +1044,7 @@ function App() {
               {!isMatchStarted ? 'BATAL CARI LAWAN' : '🚩 MENYERAH'}
             </button>
           </div>
-          
+
           <div className="text-3xl font-extrabold text-yellow-400 p-3 bg-[#1a1c23] rounded-sm border border-yellow-700/50 shadow-[inset_0_2px_10px_rgba(0,0,0,0.8)] flex items-center gap-2">
             {UI_ICONS.Energy} {energy} <span className="text-xl opacity-60">Koin</span>
           </div>
@@ -1203,9 +1224,19 @@ function App() {
           <div className="animate-fadeIn p-8 bg-[#0b0c10] rounded-sm border-4 border-[#1a1c23] text-center shadow-[0_0_50px_rgba(0,0,0,1)] max-w-5xl mx-auto flex-grow flex flex-col justify-center">
             <div className="text-sm font-mono text-gray-600 tracking-widest mb-10 drop-shadow-md">STATUS :: PERTARUNGAN SELESAI</div>
             <div className="flex justify-center items-stretch gap-10 mb-12">
-              <ResultStats title={playerName} stats={battleResult.Player_1_Stats} dmgTaken={battleResult.P1_Damage_Taken} usedRootKit={battleResult.P1_Used_RootKit} />
+              <ResultStats 
+                title={playerName} 
+                stats={battleResult.p1_name === playerName ? battleResult.Player_1_Stats : battleResult.Player_2_Stats} 
+                dmgTaken={battleResult.p1_name === playerName ? battleResult.P1_Damage_Taken : battleResult.P2_Damage_Taken} 
+                usedRootKit={battleResult.p1_name === playerName ? battleResult.P1_Used_RootKit : battleResult.P2_Used_RootKit} 
+              />
               <div className="text-6xl font-black text-gray-800 italic flex items-center drop-shadow-lg">vs</div>
-              <ResultStats title={opponentName} stats={battleResult.Player_2_Stats} dmgTaken={battleResult.P2_Damage_Taken} usedRootKit={battleResult.P2_Used_RootKit} />
+              <ResultStats 
+                title={opponentName} 
+                stats={battleResult.p1_name === playerName ? battleResult.Player_2_Stats : battleResult.Player_1_Stats} 
+                dmgTaken={battleResult.p1_name === playerName ? battleResult.P2_Damage_Taken : battleResult.P1_Damage_Taken} 
+                usedRootKit={battleResult.p1_name === playerName ? battleResult.P2_Used_RootKit : battleResult.P1_Used_RootKit} 
+              />
             </div>
             <div className="py-6 bg-[#1a1c23] rounded-sm mb-10 border border-gray-800 shadow-inner">
               <h2 className="text-5xl font-extrabold tracking-tighter text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.3)]">
