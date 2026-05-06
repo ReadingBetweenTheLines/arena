@@ -270,6 +270,7 @@ function App() {
   const [draggingItem, setDraggingItem] = useState(null);
   const [lastShopState, setLastShopState] = useState([]);
   const [hoveredCard, setHoveredCard] = useState(null);
+  const [isMatchStarted, setIsMatchStarted] = useState(false);
 
   const [battleResult, setBattleResult] = useState(null);
   const [reactionText, setReactionText] = useState("");
@@ -444,7 +445,7 @@ function App() {
     // 1. GEMBOK KEAMANAN: Jangan menelepon server jika nama atau kode ruangan belum siap!
     if (!isJoined || !isInRoom || !roomCode || !playerName) return;
 
-    const socketUrl = `wss://oyabb-arena-server.hf.space/ws/${roomCode}/${playerName}`;
+    const socketUrl = `ws://localhost:8000/ws/${roomCode}/${playerName}`;
     const socket = new WebSocket(socketUrl);
 
     // eslint-disable-next-line
@@ -460,6 +461,7 @@ function App() {
       }
 
       if (data.event === "match_start" || data.event === "match_resume") {
+        setIsMatchStarted(true);
         setBadSectors(data.bad_sectors);
         if (data.P1_MaxHP) setMyMaxHP(data.P1_MaxHP);
         if (data.P2_MaxHP) setOpponentMaxHP(data.P2_MaxHP);
@@ -769,6 +771,7 @@ function App() {
     setBench(Array(5).fill(null));
     setEnergy(15);
     setCurrentRound(1);
+    setIsMatchStarted(false);
 
     // --- PENYESUAIAN HP AWAL UNTUK HERO BARU ---
     let startingHP = 100;
@@ -997,7 +1000,30 @@ function App() {
       {renderTooltip()}
       <div className="flex-grow w-full max-w-md mx-auto flex flex-col gap-2">
         <header className="flex justify-between items-center mb-6 pb-4 border-b border-gray-800">
-          <h1 className="text-3xl font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-green-500 drop-shadow-lg">ARENA ELEMEN</h1>
+          <div>
+            <h1 className="text-3xl font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-green-500 drop-shadow-lg leading-none">ARENA ELEMEN</h1>
+            
+            {/* 👇 TOMBOL BATAL / MENYERAH DITAMBAHKAN DI SINI 👇 */}
+            <button
+              onClick={() => {
+                if (!isMatchStarted) {
+                  // Jika musuh belum ketemu, batalkan pencarian
+                  handleRematch(); 
+                } else {
+                  // Jika sudah bertarung, tanyakan kepastian untuk menyerah
+                  if (window.confirm("Apakah Anda yakin ingin menyerah? Pertandingan akan langsung berakhir dan lawan Anda akan dinyatakan menang.")) {
+                    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+                      ws.current.send(JSON.stringify({ event: "surrender" }));
+                    }
+                  }
+                }
+              }}
+              className="mt-2 text-[10px] md:text-xs font-black tracking-widest px-4 py-1.5 bg-red-950 hover:bg-red-800 text-red-300 border border-red-700 rounded-sm transition-all shadow-[0_0_10px_rgba(220,38,38,0.2)] active:scale-95"
+            >
+              {!isMatchStarted ? 'BATAL CARI LAWAN' : '🚩 MENYERAH'}
+            </button>
+          </div>
+          
           <div className="text-3xl font-extrabold text-yellow-400 p-3 bg-[#1a1c23] rounded-sm border border-yellow-700/50 shadow-[inset_0_2px_10px_rgba(0,0,0,0.8)] flex items-center gap-2">
             {UI_ICONS.Energy} {energy} <span className="text-xl opacity-60">Koin</span>
           </div>

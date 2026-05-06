@@ -224,6 +224,26 @@ def evaluate_grid(grid_data, hero_id):
 
     return {"lanes": lane_stats, "penalty": syntax_error_penalty, "combo": False}
 
+@app.delete("/admin/leaderboard/{player_name}")
+def delete_player_score(player_name: str, password: str):
+    # Ganti "KODE_RAHASIA" dengan kata sandi admin Anda
+    if password != "KODE_RAHASIA":
+        return {"error": "Akses Ditolak!"}
+    
+    if player_name in global_leaderboard:
+        del global_leaderboard[player_name]
+        save_leaderboard(global_leaderboard)
+        return {"message": f"Data {player_name} berhasil dihapus!"}
+    return {"error": "Pemain tidak ditemukan."}
+
+@app.delete("/admin/leaderboard_reset_all")
+def reset_all_scores(password: str):
+    if password != "KODE_RAHASIA":
+        return {"error": "Akses Ditolak!"}
+    
+    global_leaderboard.clear()
+    save_leaderboard(global_leaderboard)
+    return {"message": "Seluruh papan peringkat telah dikosongkan!"}
 
 @app.websocket("/ws/{room_code}/{player_name}")
 async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: str):
@@ -361,6 +381,7 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
             data = await websocket.receive_text()
             payload = json.loads(data)
             
+            # 1. TANGKAP PESAN SINKRONISASI (DIAM-DIAM)
             if payload.get("event") == "sync_state":
                 room["player_grids"][player_id] = payload.get("board", [None]*15)
                 room["player_bench"][player_id] = payload.get("bench", [None]*5)
@@ -368,15 +389,75 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
                 room["player_shop"][player_id] = payload.get("shop", [None]*5)
                 continue
             
-            # 👇 TAMBAHKAN ELIF INI: Hanya proses jika KTP-nya "lock_grid" 👇
+            # 2. TANGKAP TOMBOL "MAJU BERTARUNG"
             elif payload.get("event") == "lock_grid":
                 room["player_heroes"][player_id] = payload.get("hero", "ignis")
                 room["player_moves"][player_id] = {
                     "grid": payload.get("grid", []),
                     "root_kit": payload.get("root_kit", False),
                 }
+
+            # 👇 3. TAMBAHKAN ELIF INI: FITUR MENYERAH 👇
+            elif payload.get("event") == "surrender":
+                room["player_hp"][player_id] = 0 # HP disetel ke 0 secara instan
+                opponent_id = "Player_2" if player_id == "Player_1" else "Player_1"
+                
+                # Update Papan Peringkat (Lawan Langsung Menang)
+                winner_name = room["player_names"].get(opponent_id)
+                if winner_name:
+                    if winner_name not in global_leaderboard:
+                        global_leaderboard[winner_name] = {"wins": 0, "damage": 0}
+                    global_leaderboard[winner_name]["wins"] += 1
+                    save_leaderboard(global_leaderboard)
+                
+                sorted_leaderboard = dict(
+                    sorted(global_leaderboard.items(), key=lambda item: (item[1].get("wins", 0), item[1].get("damage", 0)), reverse=True)
+                )
+                
+                # Buat hasil kekalahan palsu agar animasi Game Over terpicu
+                surrender_result = {
+                    "event": "battle_sequence",
+                    "logs": [{"type": "clash", "lane": 2, "p1_action": {"atk":0, "def":0, "pierce":0, "faction":""}, "p2_action": {"atk":0, "def":0, "pierce":0, "faction":""}, "p1_dmg_received": 0, "p2_dmg_received": 0, "p1_status_applied": "", "p2_status_applied": "", "reaction_triggered": f"{room['player_names'][player_id]} MENYERAH!"}],
+                    "Player_1_Stats": {"attack": 0, "defense": 0, "penalty": 0},
+                    "Player_2_Stats": {"attack": 0, "defense": 0, "penalty": 0},
+                    "Player_1_HP": room["player_hp"]["Player_1"],
+                    "Player_2_HP": room["player_hp"]["Player_2"],
+                    "P1_MaxHP": room["player_max_hp"]["Player_1"],
+                    "P2_MaxHP": room["player_max_hp"]["Player_2"],
+                    "Player_1_Overload": room["player_overload"]["Player_1"],
+                    "Player_2_Overload": room["player_overload"]["Player_2"],
+                    "P1_Lane_Status": room["lane_status"]["Player_1"],
+                    "P2_Lane_Status": room["lane_status"]["Player_2"],
+                    "P1_Damage_Taken": 0,
+                    "P2_Damage_Taken": 0,
+                    "P1_Used_RootKit": False,
+                    "P2_Used_RootKit": False,
+                    "Round_Winner": winner_name if winner_name else "Lawan",
+                    "Game_Over": True,
+                    "Leaderboard": sorted_leaderboard,
+                    "Next_Bad_Sectors": [],
+                }
+
+                for player in room["connected_players"]:
+                    try:
+                        await player.send_text(json.dumps(surrender_result))
+                    except:
+                        pass
+                
+                # Reset ruang ganti untuk Rematch
+                room["player_hp"]["Player_1"] = 100
+                room["player_hp"]["Player_2"] = 100
+                room["player_max_hp"] = {"Player_1": 100, "Player_2": 100}
+                room["player_overload"] = {"Player_1": 0, "Player_2": 0}
+                room["lane_status"] = {"Player_1": [""]*5, "Player_2": [""]*5}
+                room["is_first_round"] = True
+                room["current_round"] = 1
+                room["current_bad_sectors"] = []
+                room["player_moves"].clear()
+                continue
+            # 👆 SELESAI TAMBAH FITUR MENYERAH 👆
             
-            # 👇 TAMBAHKAN ELSE INI: Abaikan semua pesan iseng lainnya 👇
+            # 4. ABAIKAN SEMUA PESAN ISENG LAINNYA
             else:
                 continue
 
