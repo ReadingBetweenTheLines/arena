@@ -3,7 +3,7 @@ import json
 import random
 import os
 import uuid
-from huggingface_hub import HfApi
+from huggingface_hub import HfApi, hf_hub_download
 
 # Tentukan nama file penyimpanan
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -13,17 +13,42 @@ waiting_random_room = None
 HF_TOKEN = os.environ.get("HF_TOKEN")
 REPO_ID = "Oyabb/arena-server"
 def load_leaderboard():
+    # 1. JURUS PAMUNGKAS: Selalu paksa download data terbaru dari Cloud (Internet)!
+    if HF_TOKEN:
+        try:
+            # Ini akan mengabaikan amnesia hard disk dan langsung menarik dari repositori
+            cloud_file = hf_hub_download(
+                repo_id=REPO_ID, 
+                filename="leaderboard_data.json", 
+                repo_type="space", 
+                token=HF_TOKEN,
+                force_download=True # 👈 KUNCI UTAMA: Paksa ambil yang paling baru!
+            )
+            with open(cloud_file, "r") as f:
+                data = json.load(f)
+                # Migrasi otomatis jika diperlukan
+                for k, v in data.items():
+                    if isinstance(v, int):
+                        data[k] = {"wins": v, "damage": 0}
+                print("Berhasil memuat skor murni dari Cloud!")
+                return data
+        except Exception as e:
+            print(f"Peringatan: Gagal memuat dari Cloud: {e}")
+
+    # 2. Rencana Cadangan (Fallback) jika Cloud sedang bermasalah
     if os.path.exists(DB_FILE):
         try:
             with open(DB_FILE, "r") as f:
                 data = json.load(f)
-                # Migrasi otomatis jika file lama hanya menyimpan angka kemenangan
                 for k, v in data.items():
                     if isinstance(v, int):
                         data[k] = {"wins": v, "damage": 0}
+                print("Berhasil memuat skor dari memori lokal.")
                 return data
         except Exception as e:
+            print(f"Gagal membaca dari memori lokal: {e}")
             return {}
+            
     return {}
 
 
