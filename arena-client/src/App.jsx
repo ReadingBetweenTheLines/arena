@@ -297,6 +297,7 @@ function App() {
   const [incomingChallenge, setIncomingChallenge] = useState(null);
   const [unresolvedMatch, setUnresolvedMatch] = useState(null);
   const [rematchStatus, setRematchStatus] = useState("");
+  const [manualRoomCode, setManualRoomCode] = useState("");
 
   // 2. SIMPAN NAMA PEMAIN SECARA OTOMATIS
   useEffect(() => {
@@ -920,8 +921,13 @@ function App() {
                   TOLAK
                 </button>
                 <button onClick={() => {
-                  if (ws.current) ws.current.send(JSON.stringify({ event: 'accept_challenge', target: incomingChallenge }));
-                  setIncomingChallenge(null);
+                  // 👇 TAMBAHKAN PENGECEKAN READYSTATE INI 👇
+                  if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+                    ws.current.send(JSON.stringify({ event: 'accept_challenge', target: incomingChallenge }));
+                    setIncomingChallenge(null);
+                  } else {
+                    alert("Koneksi ke peladen terputus! Mohon refresh halaman.");
+                  }
                 }} className="px-6 py-3 bg-gradient-to-r from-red-700 to-red-800 text-white font-black border border-red-500 rounded-sm shadow-[0_0_20px_rgba(220,38,38,0.5)] hover:scale-105 active:scale-95 transition-all">
                   TERIMA TANTANGAN!
                 </button>
@@ -941,8 +947,13 @@ function App() {
               </p>
               <div className="flex gap-4 justify-center">
                 <button onClick={() => {
-                  if (ws.current) ws.current.send(JSON.stringify({ event: 'surrender_unresolved', room_code: unresolvedMatch.room_code }));
-                  setUnresolvedMatch(null);
+                  // 👇 TAMBAHKAN PENGECEKAN READYSTATE INI 👇
+                  if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+                    ws.current.send(JSON.stringify({ event: 'surrender_unresolved', room_code: unresolvedMatch.room_code }));
+                    setUnresolvedMatch(null);
+                  } else {
+                    alert("Koneksi ke peladen terputus! Mohon refresh halaman.");
+                  }
                 }} className="px-6 py-3 border border-red-600 text-red-400 font-bold rounded-sm hover:bg-red-900/40 transition-all">
                   MENYERAH (KALAH)
                 </button>
@@ -993,8 +1004,13 @@ function App() {
                       {p}
                     </span>
                     <button onClick={() => {
-                      if (ws.current) ws.current.send(JSON.stringify({ event: 'challenge', target: p }));
-                      alert(`Surat tantangan telah dikirim ke ${p}! Menunggu jawaban...`);
+                      // 👇 TAMBAHKAN PENGECEKAN READYSTATE INI 👇
+                      if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+                        ws.current.send(JSON.stringify({ event: 'challenge', target: p }));
+                        alert(`Surat tantangan telah dikirim ke ${p}! Menunggu jawaban...`);
+                      } else {
+                        alert("Koneksi ke peladen terputus! Mohon refresh halaman.");
+                      }
                     }} className="px-4 py-2 bg-[#1a1c23] border border-blue-500 text-blue-400 hover:bg-blue-900/50 font-bold rounded-sm shadow-[0_0_10px_rgba(37,99,235,0.2)] active:scale-95 transition-all text-sm uppercase">
                       TANTANG ⚔️
                     </button>
@@ -1004,16 +1020,50 @@ function App() {
             )}
           </div>
 
-          {/* TOMBOL ACAK (FALLBACK) */}
-          <div className="p-6 bg-black/40 border-t border-gray-800">
-            <p className="text-center text-gray-500 text-xs mb-4 uppercase tracking-widest">Tidak ada yang merespon?</p>
+          {/* 👇 RUANGAN KUSTOM & ACAK 👇 */}
+          <div className="p-6 bg-black/40 border-t border-gray-800 flex flex-col gap-4">
+
+            {/* Input & Tombol Gabung Ruangan Rahasia */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="KODE RUANGAN (MABAR)..."
+                maxLength="10"
+                value={manualRoomCode}
+                onChange={(e) => setManualRoomCode(e.target.value.toUpperCase().replace(/\s/g, ''))}
+                className="flex-grow bg-black/60 border border-gray-600 rounded-sm p-3 text-white font-bold text-center outline-none focus:border-yellow-500 transition-all uppercase placeholder-gray-600 shadow-inner"
+              />
+              <button
+                onClick={() => {
+                  if (manualRoomCode.trim().length > 0) {
+                    setRoomCode(manualRoomCode.trim());
+                    rollShop();
+                  } else {
+                    alert("Masukkan kode ruangan terlebih dahulu!");
+                  }
+                }}
+                className="px-6 py-3 bg-[#1a1c23] border border-yellow-600 text-yellow-500 font-black rounded-sm hover:bg-yellow-900/40 transition-all uppercase whitespace-nowrap active:scale-95 shadow-[0_0_15px_rgba(202,138,4,0.2)]"
+              >
+                GABUNG 🚪
+              </button>
+            </div>
+
+            {/* Garis Pemisah (Atau) */}
+            <div className="relative flex items-center py-1">
+              <div className="flex-grow border-t border-gray-700"></div>
+              <span className="flex-shrink-0 mx-4 text-gray-500 text-[10px] font-bold uppercase tracking-widest">Atau</span>
+              <div className="flex-grow border-t border-gray-700"></div>
+            </div>
+
+            {/* Tombol Acak Klasik */}
             <button onClick={() => {
               setRoomCode("RANDOM");
               rollShop();
-            }} className="w-full py-4 text-white font-black rounded-sm text-xl transition-all shadow-lg bg-gradient-to-r from-blue-700 to-blue-600 border border-blue-400 hover:scale-105">
+            }} className="w-full py-4 text-white font-black rounded-sm text-xl transition-all shadow-lg bg-gradient-to-r from-blue-700 to-blue-600 border border-blue-400 hover:scale-105 active:scale-95">
               CARI LAWAN ACAK 🌍
             </button>
           </div>
+          {/* 👆 AKHIR RUANGAN KUSTOM & ACAK 👆 */}
         </div>
       </div>
     );
