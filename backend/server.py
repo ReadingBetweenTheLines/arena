@@ -86,6 +86,29 @@ leaderboard = {}
 rooms = {}
 lobby_players = {}
 
+# 👇 1. TAMBAHKAN FUNGSI GLOBAL INI DI SINI 👇
+async def broadcast_lobby():
+    # Kumpulkan semua nama dari lobi
+    active_names = set(lobby_players.keys())
+    
+    # Tambahkan semua nama dari ruangan pertarungan (yang sedang main)
+    for r_code, r_data in rooms.items():
+        for p_name in r_data["player_names"].values():
+            if p_name:
+                active_names.add(p_name)
+                
+    # Siarkan daftar gabungan ini ke semua orang yang sedang nongkrong di lobi
+    active_names_list = list(active_names)
+    for ws in list(lobby_players.values()):
+        try:
+            await ws.send_text(json.dumps({
+                "event": "lobby_update",
+                "players": active_names_list
+            }))
+        except:
+            pass
+# 👆 -------------------------------------- 👆
+
 CARD_DB = {
     # API / FIRE
     "Bola_Api": {"atk": 10, "pierce": True, "faction": "Api", "icon": "🔥"},
@@ -312,7 +335,6 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
                 except:
                     pass
 
-        await broadcast_lobby() # Beritahu semua orang bahwa kita masuk!
         
         ongoing_room = None
         opp_name = "Lawan"
@@ -347,6 +369,12 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
                         await lobby_players[target].send_text(json.dumps({
                             "event": "incoming_challenge",
                             "challenger": player_name
+                        }))
+                    else:
+                        # Jika target ada di radar tapi tidak ada di lobi, berarti dia sedang bertarung!
+                        await websocket.send_text(json.dumps({
+                            "event": "error",
+                            "message": f"Tantangan gagal! {target} sedang bertarung di ruangan lain."
                         }))
                 
                 # Jika target menekan "Terima Tantangan"
@@ -1090,3 +1118,4 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
                     )
                 except:
                     pass
+            await broadcast_lobby()

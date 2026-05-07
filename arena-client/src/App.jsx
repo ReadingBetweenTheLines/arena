@@ -488,6 +488,11 @@ function App() {
       if (data.event === "lobby_update") {
         setLobbyPlayers(data.players);
       }
+      
+      if (data.event === "error") {
+        playSound('error');
+        alert(data.message); // Ini akan memunculkan pop-up "Tantangan gagal! ..."
+      }
 
       if (data.event === "incoming_challenge") {
         playSound('error'); // Bunyi peringatan agar pemain sadar
