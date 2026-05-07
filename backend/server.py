@@ -404,7 +404,8 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
                                 pass
                 
         except WebSocketDisconnect:
-            if player_name in lobby_players:
+            # 👇 TAMBAHKAN PENGECEKAN IDENTITAS (== websocket) DI BARIS INI 👇
+            if player_name in lobby_players and lobby_players[player_name] == websocket:
                 del lobby_players[player_name]
             await broadcast_lobby() # Beritahu semua orang bahwa kita keluar
         
@@ -1060,7 +1061,7 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
 
     except WebSocketDisconnect:
         # LOGIKA TERPUTUS YANG BARU
-        if player_id in room["active_sockets"]:
+        if player_id in room["active_sockets"] and room["active_sockets"][player_id] == websocket:
             del room["active_sockets"][player_id]
 
         room["connected_players"] = list(room["active_sockets"].values())
