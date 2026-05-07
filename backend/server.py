@@ -335,6 +335,9 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
             while True:
                 data = await websocket.receive_text()
                 payload = json.loads(data)
+                
+                if payload.get("event") == "ping":
+                    continue
 
                 # Jika ada yang menekan tombol "Tantang"
                 if payload.get("event") == "challenge":
@@ -545,6 +548,9 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
         while True:
             data = await websocket.receive_text()
             payload = json.loads(data)
+            
+            if payload.get("event") == "ping":
+                continue
             
             # 1. TANGKAP PESAN SINKRONISASI (DIAM-DIAM)
             if payload.get("event") == "sync_state":

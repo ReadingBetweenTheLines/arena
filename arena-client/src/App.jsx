@@ -471,6 +471,16 @@ function App() {
     // eslint-disable-next-line
     ws.current = socket;
 
+    let heartbeat;
+    socket.onopen = () => {
+      // Setiap 25 detik, kirim sinyal "ping" agar server tidak memutus koneksi kita
+      heartbeat = setInterval(() => {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ event: "ping" }));
+        }
+      }, 25000); 
+    };
+
     // 2. Ganti ws.current.onmessage menjadi socket.onmessage agar lebih stabil
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
@@ -600,6 +610,7 @@ function App() {
     };
 
     return () => {
+      if (heartbeat) clearInterval(heartbeat);
       if (socket.readyState === 1 || socket.readyState === 0) socket.close();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
