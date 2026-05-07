@@ -323,19 +323,8 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
     if room_code == "LOBBY":
         lobby_players[player_name] = websocket
         
-        # Fungsi untuk mengumumkan daftar orang di lobi ke semua orang
-        async def broadcast_lobby():
-            active_names = list(lobby_players.keys())
-            for ws in list(lobby_players.values()):
-                try:
-                    await ws.send_text(json.dumps({
-                        "event": "lobby_update",
-                        "players": active_names
-                    }))
-                except:
-                    pass
+        await broadcast_lobby()
 
-        
         ongoing_room = None
         opp_name = "Lawan"
         for r_code, r_data in rooms.items():
@@ -359,6 +348,7 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, player_name: 
                 payload = json.loads(data)
                 
                 if payload.get("event") == "ping":
+                    await broadcast_lobby()
                     continue
 
                 # Jika ada yang menekan tombol "Tantang"

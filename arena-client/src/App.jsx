@@ -473,12 +473,11 @@ function App() {
 
     let heartbeat;
     socket.onopen = () => {
-      // Setiap 25 detik, kirim sinyal "ping" agar server tidak memutus koneksi kita
       heartbeat = setInterval(() => {
         if (socket.readyState === WebSocket.OPEN) {
           socket.send(JSON.stringify({ event: "ping" }));
         }
-      }, 25000); 
+      }, 5000); 
     };
 
     // 2. Ganti ws.current.onmessage menjadi socket.onmessage agar lebih stabil
@@ -488,7 +487,7 @@ function App() {
       if (data.event === "lobby_update") {
         setLobbyPlayers(data.players);
       }
-      
+
       if (data.event === "error") {
         playSound('error');
         alert(data.message); // Ini akan memunculkan pop-up "Tantangan gagal! ..."
